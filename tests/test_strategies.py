@@ -43,6 +43,12 @@ tb_add_features = tb["add_features"]
 tb_entry_signal = tb["entry_signal"]
 tb_exit_signal = tb["exit_signal"]
 
+cp = _load_pure_functions("CandlePatternStrategy.py", "CandlePatternStrategy")
+cp_add_features = cp["add_features"]
+cp_entry_signal = cp["entry_signal"]
+cp_hammer = cp["hammer"]
+cp_engulfing = cp["bullish_engulfing"]
+
 
 def make_candles(n=60, price=100.0, volume=1000.0):
     """Flat, boring market: SOL at `price`, BTC 60000, ETH 3000."""
@@ -186,3 +192,102 @@ def test_tb_exit_on_structure_failure():
     candles.loc[last, "low"] = 95.8
     df = tb_add_features(candles)
     assert tb_exit_signal(df).iloc[-1], "close below prior swing low must exit"
+
+
+# --- CandlePatternStrategy ---------------------------------------------------
+
+
+def make_swing_with_retrace(hammer_low=107.3, confirm_close=109.5, trend=1):
+    """Flat 100 -> rally to 120 -> retrace into the 38.2-61.8% fib zone,
+    hammer prints at bar -2, confirmation candle at bar -1."""
+    closes = np.concatenate([
+        np.full(40, 100.0),                 # base
+        np.linspace(100, 120, 20),          # rally (swing high 120)
+        np.linspace(120, 108.6, 15),        # retracement into the zone
+    ])
+    n = len(closes)
+    df = pd.DataFrame({
+        "date": pd.date_range("2026-01-01", periods=n, freq="1h", tz="UTC"),
+        "open": closes - 0.1,
+        "high": closes + 0.3,
+        "low": closes - 0.3,
+        "close": closes,
+        "volume": 1000.0,
+        "trend_up_4h": trend,
+    })
+    hammer = pd.DataFrame({
+        "date": [df["date"].iloc[-1] + pd.Timedelta(hours=1)],
+        "open": [108.5], "high": [109.0], "low": [hammer_low], "close": [108.8],
+        "volume": [1500.0], "trend_up_4h": [trend],
+    })
+    confirm = pd.DataFrame({
+        "date": [df["date"].iloc[-1] + pd.Timedelta(hours=2)],
+        "open": [108.8], "high": [confirm_close + 0.2], "low": [108.5],
+        "close": [confirm_close], "volume": [1800.0], "trend_up_4h": [trend],
+    })
+    return pd.concat([df, hammer, confirm], ignore_index=True)
+
+
+def test_cp_hammer_detected():
+    df = cp_add_features(make_swing_with_retrace())
+    assert df["pattern"].iloc[-2] == 1, "hammer candle must be recognized as a pattern"
+
+
+def test_cp_entry_fires_on_confirmed_pattern_in_zone():
+    df = cp_add_features(make_swing_with_retrace())
+    assert cp_entry_signal(df).iloc[-1], "hammer in fib zone + confirmation close -> entry"
+
+
+def test_cp_no_entry_without_confirmation():
+    df = cp_add_features(make_swing_with_retrace(confirm_close=108.5))
+    assert not cp_entry_signal(df).iloc[-1], "no close above pattern high -> no entry"
+
+
+def test_cp_no_entry_when_pattern_prints_mid_range():
+    # Same hammer shape but the retracement is shallow: price only pulls back
+    # to ~117, far above the 38.2-61.8% zone. Patterns mid-range are noise.
+    closes = np.concatenate([
+        np.full(40, 100.0),
+        np.linspace(100, 120, 20),
+        np.linspace(120, 117.5, 6),
+    ])
+    n = len(closes)
+    df = pd.DataFrame({
+        "date": pd.date_range("2026-01-01", periods=n, freq="1h", tz="UTC"),
+        "open": closes - 0.1, "high": closes + 0.3, "low": closes - 0.3,
+        "close": closes, "volume": 1000.0, "trend_up_4h": 1,
+    })
+    hammer = pd.DataFrame({
+        "date": [df["date"].iloc[-1] + pd.Timedelta(hours=1)],
+        "open": [117.3], "high": [117.8], "low": [115.9], "close": [117.6],
+        "volume": [1500.0], "trend_up_4h": [1],
+    })
+    confirm = pd.DataFrame({
+        "date": [df["date"].iloc[-1] + pd.Timedelta(hours=2)],
+        "open": [117.6], "high": [118.4], "low": [117.4], "close": [118.2],
+        "volume": [1800.0], "trend_up_4h": [1],
+    })
+    full = cp_add_features(pd.concat([df, hammer, confirm], ignore_index=True))
+    assert full["pattern"].iloc[-2] == 1, "sanity: the candle shape is a hammer"
+    assert not cp_entry_signal(full).iloc[-1], "pattern far above the fib zone must not enter"
+
+
+def test_cp_no_entry_in_downtrend():
+    df = cp_add_features(make_swing_with_retrace(trend=0))
+    assert not cp_entry_signal(df).iloc[-1], "4h downtrend filter must block longs"
+
+
+def test_cp_flat_market_produces_no_signals():
+    df = cp_add_features(make_candles())
+    assert not cp_entry_signal(df).fillna(False).any()
+
+
+def test_cp_bullish_engulfing_detected():
+    df = pd.DataFrame({
+        "open":  [100.0, 99.0],
+        "high":  [100.5, 100.8],
+        "low":   [98.8, 98.5],
+        "close": [99.2, 100.6],
+        "volume": [1000.0, 1400.0],
+    })
+    assert cp_engulfing(df).iloc[-1], "green candle engulfing prior red body"

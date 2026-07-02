@@ -64,7 +64,7 @@ cache — separate wallets, separate trades, separate databases.
 | 0 | Scaffold: repo, Docker, dry-run config, WebUI | ✅ done |
 | 1 | `scripts/screener.py` + 2y of 1h/4h OHLCV | ✅ screener done; backfill runs in background |
 | 2 | TrendBreakStrategy + pytest + backtest report | ✅ both strategies implemented, 14 tests pass; backtests on 2.5y data: **both fail the gates** — see [docs/backtest-report-2026-07-02.md](docs/backtest-report-2026-07-02.md) |
-| 3 | CandlePatternStrategy + hyperopt + walk-forward | ✅ hyperopt+walk-forward done for TrendBreak & SolCross — both pass the overfit rule, see [docs/walkforward-report-2026-07-02.md](docs/walkforward-report-2026-07-02.md); CandlePattern deferred |
+| 3 | CandlePatternStrategy + hyperopt + walk-forward | ✅ TrendBreak & SolCross pass the overfit rule; **CandlePattern implemented, tested, and REJECTED** (loses even in-sample after tuning) — see [docs/walkforward-report-2026-07-02.md](docs/walkforward-report-2026-07-02.md) |
 | 4 | 30-day dry-run on always-on machine + `scripts/report.py` | 🔶 dry-run clock started 2026-07-02 with tuned strategies; report.py pending |
 | 5 | Live gate (human decision only) | ⬜ |
 | 6 | Strategy C (ICT/MacroWindow, experimental) + FreqAI filter | ⬜ |
@@ -81,6 +81,16 @@ cache — separate wallets, separate trades, separate databases.
 Max 1% risk/trade · max 3 positions (2 correlated) · −3% daily kill switch ·
 cooldown after 2 straight losses · stoploss on-exchange · fees 0.16% RT +
 0.05% slippage in every backtest.
+
+## Weekly report
+
+`python scripts/report.py` writes `docs/reports/weekly-<date>.md`: per-bot
+PnL, drawdown, and — the Phase 5 gate input — divergence between dry-run
+results and pro-rata backtest expectations (>20% = red flag, judge at day 30).
+To automate it, create a Windows scheduled task (run once, as admin if needed):
+
+    schtasks /Create /SC WEEKLY /D MON /ST 08:00 /TN "SolSignal Weekly Report" ^
+      /TR "\"C:\laragon\bin\python\python-3.10\python.exe\" \"C:\Server\solsignal\scripts\report.py\""
 
 ## Kraken-specific notes
 

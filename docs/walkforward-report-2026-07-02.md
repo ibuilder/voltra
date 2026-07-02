@@ -50,6 +50,25 @@ collapsed out-of-sample. The walk-forward rule passes for both.
 4. One hyperopt pass = one shot of selection bias. Monthly re-hyperopt with
    walk-forward (Phase 6) is the guard against regime change, not a promise.
 
+## Addendum: CandlePatternStrategy (Strategy B) — REJECTED
+
+Implemented per plan section 3B (hammer / bullish engulfing / morning star,
+gated to the 38.2–61.8% fib retracement of the last swing, confirmation
+candle required, 4h uptrend filter, same ATR/RR framework; 7 signal tests).
+
+| Config | Trades | Profit | PF | Max DD |
+|---|---|---|---|---|
+| Defaults, 2024–2026 | 513 | −45.3% | 0.69 | 47.2% |
+| Hyperopt best, 2024 in-sample | 165 | −14.2% | 0.66 | 15.1% |
+
+Even the optimizer's best configuration loses in-sample — there is no edge
+to validate out-of-sample. The optimizer converged on "minimize damage"
+(zone_tolerance 0, stop 4×ATR), which is what a search looks like when the
+entry signal carries no information. **Not deployed to any bot.** The code
+and tests stay in the repo as reference; revisit only with a fundamentally
+different gating idea (e.g., order-flow or higher-timeframe confluence),
+not more parameter tuning.
+
 ## Deployed
 
 Both dry-run bots now run the tuned parameters (auto-loaded from the .json
