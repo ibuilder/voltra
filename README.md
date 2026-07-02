@@ -63,7 +63,7 @@ cache — separate wallets, separate trades, separate databases.
 |---|---|---|
 | 0 | Scaffold: repo, Docker, dry-run config, WebUI | ✅ done |
 | 1 | `scripts/screener.py` + 2y of 1h/4h OHLCV | ✅ screener done; backfill runs in background |
-| 2 | TrendBreakStrategy + pytest + backtest report | 🔶 SolCrossSignalStrategy (BTC/ETH→SOL lead-lag) live in dry-run with 8 passing signal tests; TrendBreak + backtests pending data |
+| 2 | TrendBreakStrategy + pytest + backtest report | ✅ both strategies implemented, 14 tests pass; backtests on 2.5y data: **both fail the gates** — see [docs/backtest-report-2026-07-02.md](docs/backtest-report-2026-07-02.md) |
 | 3 | CandlePatternStrategy + hyperopt + walk-forward | ⬜ |
 | 4 | 30-day dry-run on always-on machine + `scripts/report.py` | ⬜ |
 | 5 | Live gate (human decision only) | ⬜ |
