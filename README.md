@@ -11,7 +11,13 @@ pairs BTC/USD · ETH/USD · SOL/USD plus screener output.
 2. `cp .env.example .env` and fill in WebUI credentials (exchange keys not needed
    until the live gate; Telegram optional).
 3. `docker compose pull`
-4. `docker compose up -d` → FreqUI at http://127.0.0.1:8080
+4. `docker compose up -d` →
+   - **FreqUI** (full control panel, bundled with freqtrade): http://127.0.0.1:8080
+   - **SolSignal dashboard** (custom Tailwind read-only view): http://127.0.0.1:8899
+   Both use the same login from `.env` (`FREQTRADE__API_SERVER__USERNAME`/`PASSWORD`).
+   The custom dashboard is a single static page (`dashboard/index.html`) that reads
+   the freqtrade REST API; its origin must be listed in `api_server.CORS_origins`
+   in `user_data/config.json`.
 
 `user_data/config.json` (dry-run) and `user_data/config.live.json` are
 **gitignored by design** — secrets stay in `.env`, and configs never leave this

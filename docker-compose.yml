@@ -18,6 +18,16 @@ services:
       --config /freqtrade/user_data/config.json
       --strategy PlaceholderStrategy
 
+  # Custom SolSignal dashboard (Tailwind, static) — reads the freqtrade REST API.
+  dashboard:
+    image: nginx:alpine
+    restart: unless-stopped
+    container_name: solsignal-dashboard
+    volumes:
+      - "./dashboard:/usr/share/nginx/html:ro"
+    ports:
+      - "127.0.0.1:8899:80"
+
   # Background data storage: one-time 2y backfill, then 6-hourly refresh.
   # Single writer to user_data/data/ — keep all downloads in this service.
   data-daemon:
