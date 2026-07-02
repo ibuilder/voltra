@@ -47,11 +47,16 @@ cooldown after 2 straight losses · stoploss on-exchange · fees 0.16% RT +
 - Kraken's OHLCV endpoint only serves the last 720 candles, and Freqtrade
   blocks plain candle downloads for Kraken entirely — all history comes from
   trades-based download (`--dl-trades`). The `data-daemon` compose service
-  handles this in the background: a one-time 2y backfill of BTC/ETH/SOL
-  (many hours; `user_data/data/.backfill_complete` marks it done), then an
-  incremental refresh of every screened pair every 6h. Check progress with
+  handles this in the background: a one-time 2y backfill of BTC/ETH/SOL,
+  then a 6-hourly incremental refresh of every screened pair. At ~1,000
+  trades per request and a 3.1s rate limit, the BTC backfill realistically
+  takes **days** — the daemon survives restarts, and
+  `user_data/data/.backfill_complete` marks completion. Check progress with
   `docker compose logs -f data-daemon`. Keep `user_data/data/` — it is the
   product of that work.
+- Faster path if Phase 2 needs data sooner: Kraken publishes official
+  quarterly OHLCVT CSV archives (support.kraken.com → "Downloadable
+  historical OHLCVT data") that convert to freqtrade format in minutes.
 - Refresh the pair whitelist anytime with `python scripts/screener.py`, then
   copy new pairs into `user_data/config.json` and restart.
 - Freqtrade handles Kraken's XBT↔BTC naming; always write `BTC/USD` in configs.
