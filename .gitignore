@@ -1,0 +1,22 @@
+# Secrets — never commit
+.env
+user_data/config*.json
+
+# Runtime artifacts
+user_data/data/
+user_data/logs/
+user_data/backtest_results/
+user_data/hyperopt_results/
+user_data/plot/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Notebooks
+.ipynb_checkpoints/
