@@ -1,0 +1,29 @@
+{
+  "strategy_name": "TrendBreakStrategy",
+  "params": {
+    "roi": {},
+    "stoploss": {
+      "stoploss": -0.08
+    },
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": null,
+      "trailing_stop_positive_offset": 0.0,
+      "trailing_only_offset_is_reached": false
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {
+      "breakout_buffer": 0.008,
+      "vol_mult": 2.4
+    },
+    "sell": {
+      "atr_stop_mult": 2.2,
+      "rr_target": 2.7,
+      "trail_after_r": 1.9
+    }
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2026-07-02 14:16:02.738811+00:00"
+}

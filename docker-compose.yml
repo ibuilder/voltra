@@ -16,7 +16,7 @@ services:
       --logfile /freqtrade/user_data/logs/freqtrade.log
       --db-url sqlite:////freqtrade/user_data/tradesv3.dryrun.sqlite
       --config /freqtrade/user_data/config.json
-      --strategy PlaceholderStrategy
+      --strategy TrendBreakStrategy
 
   # Bot #2: BTC/ETH -> SOL cross-asset lead-lag strategy. One bot = one
   # container + one config + one port + one database. Register it in FreqUI

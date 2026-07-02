@@ -20,7 +20,12 @@ from typing import Optional
 from pandas import DataFrame
 
 from freqtrade.persistence import Trade
-from freqtrade.strategy import IStrategy, merge_informative_pair, stoploss_from_absolute
+from freqtrade.strategy import (
+    DecimalParameter,
+    IStrategy,
+    merge_informative_pair,
+    stoploss_from_absolute,
+)
 
 SWING_BARS = 20        # lookback defining the prior swing high
 VOL_MULT = 1.5         # breakout volume vs 20-bar mean
@@ -44,14 +49,15 @@ def add_features(df: DataFrame) -> DataFrame:
     return df
 
 
-def entry_signal(df: DataFrame) -> "DataFrame":
-    """Fresh close above the prior swing high, volume confirm, 4h uptrend."""
-    breakout = (df["close"] > df["swing_high"]) & (
-        df["close"].shift(1) <= df["swing_high"].shift(1)
-    )
+def entry_signal(df: DataFrame, vol_mult: float = VOL_MULT,
+                 buffer: float = 0.0) -> "DataFrame":
+    """Fresh close above the prior swing high (plus an optional buffer to
+    skip marginal pokes), volume confirm, 4h uptrend."""
+    level = df["swing_high"] * (1 + buffer)
+    breakout = (df["close"] > level) & (df["close"].shift(1) <= level.shift(1))
     return (
         breakout
-        & (df["volume"] > VOL_MULT * df["vol_mean20"])
+        & (df["volume"] > vol_mult * df["vol_mean20"])
         & (df["trend_up_4h"] > 0)
     )
 
@@ -70,6 +76,15 @@ class TrendBreakStrategy(IStrategy):
     can_short = False  # spot
     process_only_new_candles = True
     startup_candle_count = 60
+
+    # Hyperopt spaces. rr_target floor 2.0 = the plan's 1:2 minimum RR.
+    # Wider atr_stop_mult range is the main experiment: 2.0 proved too
+    # tight for 1h breakout noise (189/379 trades died on the stop).
+    vol_mult = DecimalParameter(1.2, 2.5, default=VOL_MULT, decimals=1, space="buy")
+    breakout_buffer = DecimalParameter(0.0, 0.010, default=0.0, decimals=3, space="buy")
+    atr_stop_mult = DecimalParameter(1.5, 4.0, default=ATR_STOP_MULT, decimals=1, space="sell")
+    rr_target = DecimalParameter(2.0, 4.0, default=RR_TARGET, decimals=1, space="sell")
+    trail_after_r = DecimalParameter(0.5, 2.0, default=TRAIL_AFTER_R, decimals=1, space="sell")
 
     # Disaster backstop; the working stop is custom_stoploss.
     stoploss = -0.08
@@ -119,7 +134,10 @@ class TrendBreakStrategy(IStrategy):
         return add_features(dataframe)
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        dataframe.loc[entry_signal(dataframe), ["enter_long", "enter_tag"]] = (1, "swing_break")
+        signal = entry_signal(
+            dataframe, vol_mult=self.vol_mult.value, buffer=self.breakout_buffer.value
+        )
+        dataframe.loc[signal, ["enter_long", "enter_tag"]] = (1, "swing_break")
         return dataframe
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
@@ -137,7 +155,7 @@ class TrendBreakStrategy(IStrategy):
         df, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
         if df.empty or not df["atr"].notna().any():
             return proposed_stake
-        stop_fraction = ATR_STOP_MULT * df["atr"].iloc[-1] / current_rate
+        stop_fraction = self.atr_stop_mult.value * df["atr"].iloc[-1] / current_rate
         if stop_fraction <= 0:
             return proposed_stake
         stake = (self.wallets.get_total_stake_amount() * RISK_PER_TRADE) / stop_fraction
@@ -160,19 +178,19 @@ class TrendBreakStrategy(IStrategy):
         entry_atr = trade.get_custom_data("entry_atr")
         if not entry_atr:
             return None
-        initial_risk = ATR_STOP_MULT * entry_atr / trade.open_rate
+        initial_risk = self.atr_stop_mult.value * entry_atr / trade.open_rate
 
-        if current_profit >= TRAIL_AFTER_R * initial_risk:
+        if current_profit >= self.trail_after_r.value * initial_risk:
             df, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
             if not df.empty and df["atr"].notna().any():
                 last = df.iloc[-1]
                 return stoploss_from_absolute(
-                    last["close"] - ATR_STOP_MULT * last["atr"],
+                    last["close"] - self.atr_stop_mult.value * last["atr"],
                     current_rate, is_short=trade.is_short, leverage=trade.leverage,
                 )
 
         return stoploss_from_absolute(
-            trade.open_rate - ATR_STOP_MULT * entry_atr,
+            trade.open_rate - self.atr_stop_mult.value * entry_atr,
             current_rate, is_short=trade.is_short, leverage=trade.leverage,
         )
 
@@ -181,7 +199,7 @@ class TrendBreakStrategy(IStrategy):
         """Take profit at RR_TARGET x initial risk."""
         entry_atr = trade.get_custom_data("entry_atr")
         if entry_atr:
-            initial_risk = ATR_STOP_MULT * entry_atr / trade.open_rate
-            if current_profit >= RR_TARGET * initial_risk:
-                return "rr_2_to_1"
+            initial_risk = self.atr_stop_mult.value * entry_atr / trade.open_rate
+            if current_profit >= self.rr_target.value * initial_risk:
+                return "rr_target"
         return None

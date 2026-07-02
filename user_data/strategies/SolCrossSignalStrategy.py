@@ -9,13 +9,19 @@ Signal math lives in module-level pure functions (pandas only, no TA-Lib)
 so tests/test_strategies.py can exercise it without a running bot.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from pandas import DataFrame
 
 from freqtrade.persistence import Trade
-from freqtrade.strategy import IStrategy, merge_informative_pair, stoploss_from_absolute
+from freqtrade.strategy import (
+    DecimalParameter,
+    IntParameter,
+    IStrategy,
+    merge_informative_pair,
+    stoploss_from_absolute,
+)
 
 BTC_RET_MIN = 0.010   # BTC 4-bar return to call it a pump
 ETH_RET_MIN = 0.010   # ETH 4-bar return
@@ -44,14 +50,15 @@ def add_features(df: DataFrame) -> DataFrame:
     return df
 
 
-def entry_signal(df: DataFrame) -> "DataFrame":
+def entry_signal(df: DataFrame, majors_ret_min: float = BTC_RET_MIN,
+                 lag_min: float = LAG_MIN, vol_mult: float = VOL_MULT) -> "DataFrame":
     """Boolean Series: majors pumping, SOL lagging, uptrend, volume confirm."""
     return (
-        (df["btc_ret"] > BTC_RET_MIN)
-        & (df["eth_ret"] > ETH_RET_MIN)
-        & (df["lag_gap"] > LAG_MIN)
+        (df["btc_ret"] > majors_ret_min)
+        & (df["eth_ret"] > majors_ret_min)
+        & (df["lag_gap"] > lag_min)
         & (df["trend_up_4h"] > 0)
-        & (df["volume"] > VOL_MULT * df["vol_mean20"])
+        & (df["volume"] > vol_mult * df["vol_mean20"])
     )
 
 
@@ -67,6 +74,17 @@ class SolCrossSignalStrategy(IStrategy):
     can_short = False
     process_only_new_candles = True
     startup_candle_count = 60  # 4h EMAs are computed on the 4h informative df
+
+    # Hyperopt spaces. Entry params live only in populate_entry_trend so
+    # indicators stay cached across epochs. rr_target floor is 2.0 — the
+    # plan's 1:2 minimum RR is non-negotiable.
+    majors_ret_min = DecimalParameter(0.004, 0.020, default=BTC_RET_MIN, decimals=3, space="buy")
+    lag_min = DecimalParameter(0.002, 0.015, default=LAG_MIN, decimals=3, space="buy")
+    vol_mult = DecimalParameter(1.0, 2.0, default=VOL_MULT, decimals=1, space="buy")
+    atr_stop_mult = DecimalParameter(1.5, 4.0, default=ATR_STOP_MULT, decimals=1, space="sell")
+    rr_target = DecimalParameter(2.0, 4.0, default=RR_TARGET, decimals=1, space="sell")
+    trail_after_r = DecimalParameter(0.5, 2.0, default=1.0, decimals=1, space="sell")
+    max_hold_hours = IntParameter(6, 48, default=24, space="sell")
 
     # Disaster backstop only — the working stop is custom_stoploss (2x ATR).
     stoploss = -0.08
@@ -124,7 +142,13 @@ class SolCrossSignalStrategy(IStrategy):
         return add_features(dataframe)
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        dataframe.loc[entry_signal(dataframe), ["enter_long", "enter_tag"]] = (1, "btc_eth_lead_lag")
+        signal = entry_signal(
+            dataframe,
+            majors_ret_min=self.majors_ret_min.value,
+            lag_min=self.lag_min.value,
+            vol_mult=self.vol_mult.value,
+        )
+        dataframe.loc[signal, ["enter_long", "enter_tag"]] = (1, "btc_eth_lead_lag")
         return dataframe
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
@@ -143,7 +167,7 @@ class SolCrossSignalStrategy(IStrategy):
         if df.empty or not df["atr"].notna().any():
             return proposed_stake
         atr = df["atr"].iloc[-1]
-        stop_fraction = ATR_STOP_MULT * atr / current_rate
+        stop_fraction = self.atr_stop_mult.value * atr / current_rate
         if stop_fraction <= 0:
             return proposed_stake
         account = self.wallets.get_total_stake_amount()
@@ -156,15 +180,25 @@ class SolCrossSignalStrategy(IStrategy):
     def custom_stoploss(self, pair: str, trade: Trade, current_time: datetime,
                         current_rate: float, current_profit: float,
                         after_fill: bool, **kwargs) -> Optional[float]:
-        """Trailing 2xATR stop below the latest close."""
-        df, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
-        if df.empty:
+        """Fixed ATR stop from entry; trails under close only after the trade
+        is trail_after_r x initial risk in profit — the always-trailing stop
+        choked the catch-up thesis in the first backtest."""
+        entry_atr = trade.get_custom_data("entry_atr")
+        if not entry_atr:
             return None
-        last = df.iloc[-1]
-        if not last.notna().get("atr", False):
-            return None
+        initial_risk = self.atr_stop_mult.value * entry_atr / trade.open_rate
+
+        if current_profit >= self.trail_after_r.value * initial_risk:
+            df, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+            if not df.empty and df["atr"].notna().any():
+                last = df.iloc[-1]
+                return stoploss_from_absolute(
+                    last["close"] - self.atr_stop_mult.value * last["atr"],
+                    current_rate, is_short=trade.is_short, leverage=trade.leverage,
+                )
+
         return stoploss_from_absolute(
-            last["close"] - ATR_STOP_MULT * last["atr"],
+            trade.open_rate - self.atr_stop_mult.value * entry_atr,
             current_rate, is_short=trade.is_short, leverage=trade.leverage,
         )
 
@@ -177,10 +211,13 @@ class SolCrossSignalStrategy(IStrategy):
 
     def custom_exit(self, pair: str, trade: Trade, current_time: datetime,
                     current_rate: float, current_profit: float, **kwargs):
-        """Take profit at RR_TARGET x the initial (2xATR) risk."""
+        """Take profit at rr_target x initial risk; abandon stale trades —
+        the thesis is 'SOL catches up within hours', not 'SOL trends'."""
         entry_atr = trade.get_custom_data("entry_atr")
         if entry_atr:
-            initial_risk = ATR_STOP_MULT * entry_atr / trade.open_rate
-            if current_profit >= RR_TARGET * initial_risk:
-                return "rr_2_to_1"
+            initial_risk = self.atr_stop_mult.value * entry_atr / trade.open_rate
+            if current_profit >= self.rr_target.value * initial_risk:
+                return "rr_target"
+        if current_time - trade.open_date_utc > timedelta(hours=int(self.max_hold_hours.value)):
+            return "thesis_expired"
         return None

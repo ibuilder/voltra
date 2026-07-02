@@ -19,10 +19,15 @@ def _load_pure_functions(strategy_file: str, class_name: str) -> dict:
     """Execute a strategy module up to its IStrategy class, skipping the
     freqtrade imports — leaves only stdlib/pandas-dependent code."""
     source = (STRATEGY_DIR / strategy_file).read_text(encoding="utf-8")
-    lines = [
-        line for line in source.split(f"class {class_name}")[0].splitlines()
-        if not line.startswith(("from freqtrade", "import freqtrade"))
-    ]
+    lines, skipping = [], False
+    for line in source.split(f"class {class_name}")[0].splitlines():
+        if line.startswith(("from freqtrade", "import freqtrade")):
+            skipping = line.rstrip().endswith("(")  # multi-line import block
+            continue
+        if skipping:
+            skipping = line.strip() != ")"
+            continue
+        lines.append(line)
     namespace = {}
     exec("\n".join(lines), namespace)
     return namespace
