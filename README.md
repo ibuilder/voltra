@@ -23,13 +23,47 @@ pairs BTC/USD · ETH/USD · SOL/USD plus screener output.
 **gitignored by design** — secrets stay in `.env`, and configs never leave this
 machine. If you clone fresh, regenerate them from the build plan.
 
+## Bots ↔ dashboards: how they connect
+
+Mental model: **a "bot" is one freqtrade process** (one Docker container) defined
+by one config file + one strategy + one SQLite database + one REST API port.
+**Dashboards are just API clients** — they hold no data and run no strategies;
+they log into a bot's REST API (username/password from `.env` → JWT token) and
+render what it reports. Any dashboard can point at any bot.
+
+Current fleet:
+
+| Bot | Container | API port | Strategy | Pairs |
+|---|---|---|---|---|
+| solsignal-dry | solsignal-freqtrade | 8080 | PlaceholderStrategy (inert) | 17 |
+| solsignal-cross | solsignal-freqtrade-cross | 8081 | SolCrossSignalStrategy | SOL/USD |
+
+To view a bot:
+- **FreqUI** (http://127.0.0.1:8080): top-left bot selector → "Add new bot" →
+  enter `http://127.0.0.1:8081` + the `.env` username/password. FreqUI stores
+  multiple bots and switches between them.
+- **SolSignal dashboard** (http://127.0.0.1:8899): pick the bot's API URL from
+  the dropdown on the login screen.
+
+To register a NEW bot (bot #3, etc.):
+1. Copy `user_data/config.json` → `config.<name>.json`; change `bot_name` and
+   `pair_whitelist`.
+2. Add a compose service like `freqtrade-cross`: unique container name, unique
+   host port (`127.0.0.1:8082:8080`), unique `--db-url` sqlite file, and the
+   `--strategy` it should run. `docker compose up -d <service>`.
+3. Add its URL in FreqUI ("Add new bot") and/or the dashboard datalist in
+   `dashboard/index.html`.
+
+The bots share nothing but the `.env` login and the `user_data/data/` candle
+cache — separate wallets, separate trades, separate databases.
+
 ## Build phases
 
 | Phase | Deliverable | Status |
 |---|---|---|
 | 0 | Scaffold: repo, Docker, dry-run config, WebUI | ✅ done |
 | 1 | `scripts/screener.py` + 2y of 1h/4h OHLCV | ✅ screener done; backfill runs in background |
-| 2 | TrendBreakStrategy + pytest + backtest report | ⬜ |
+| 2 | TrendBreakStrategy + pytest + backtest report | 🔶 SolCrossSignalStrategy (BTC/ETH→SOL lead-lag) live in dry-run with 8 passing signal tests; TrendBreak + backtests pending data |
 | 3 | CandlePatternStrategy + hyperopt + walk-forward | ⬜ |
 | 4 | 30-day dry-run on always-on machine + `scripts/report.py` | ⬜ |
 | 5 | Live gate (human decision only) | ⬜ |

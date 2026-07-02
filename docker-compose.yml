@@ -18,6 +18,26 @@ services:
       --config /freqtrade/user_data/config.json
       --strategy PlaceholderStrategy
 
+  # Bot #2: BTC/ETH -> SOL cross-asset lead-lag strategy. One bot = one
+  # container + one config + one port + one database. Register it in FreqUI
+  # via "Add new bot" with URL http://127.0.0.1:8081 and the same .env login.
+  freqtrade-cross:
+    image: freqtradeorg/freqtrade:stable
+    restart: unless-stopped
+    container_name: solsignal-freqtrade-cross
+    volumes:
+      - "./user_data:/freqtrade/user_data"
+    ports:
+      - "127.0.0.1:8081:8080"
+    env_file:
+      - .env
+    command: >
+      trade
+      --logfile /freqtrade/user_data/logs/freqtrade-cross.log
+      --db-url sqlite:////freqtrade/user_data/tradesv3.cross.dryrun.sqlite
+      --config /freqtrade/user_data/config.cross.json
+      --strategy SolCrossSignalStrategy
+
   # Custom SolSignal dashboard (Tailwind, static) — reads the freqtrade REST API.
   dashboard:
     image: nginx:alpine
