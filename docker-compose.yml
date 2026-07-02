@@ -17,3 +17,20 @@ services:
       --db-url sqlite:////freqtrade/user_data/tradesv3.dryrun.sqlite
       --config /freqtrade/user_data/config.json
       --strategy PlaceholderStrategy
+
+  # Background data storage: one-time 2y backfill, then 6-hourly refresh.
+  # Single writer to user_data/data/ — keep all downloads in this service.
+  data-daemon:
+    image: freqtradeorg/freqtrade:stable
+    restart: unless-stopped
+    container_name: solsignal-data-daemon
+    volumes:
+      - "./user_data:/freqtrade/user_data"
+      - "./scripts:/freqtrade/scripts:ro"
+    env_file:
+      - .env
+    environment:
+      # Downloader never serves the API; avoids port/credential coupling.
+      - FREQTRADE__API_SERVER__ENABLED=false
+    entrypoint: ["/bin/sh"]
+    command: ["/freqtrade/scripts/data_daemon.sh"]

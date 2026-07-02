@@ -22,7 +22,7 @@ machine. If you clone fresh, regenerate them from the build plan.
 | Phase | Deliverable | Status |
 |---|---|---|
 | 0 | Scaffold: repo, Docker, dry-run config, WebUI | ✅ done |
-| 1 | `scripts/screener.py` + 2y of 1h/4h OHLCV | ⬜ |
+| 1 | `scripts/screener.py` + 2y of 1h/4h OHLCV | ✅ screener done; backfill runs in background |
 | 2 | TrendBreakStrategy + pytest + backtest report | ⬜ |
 | 3 | CandlePatternStrategy + hyperopt + walk-forward | ⬜ |
 | 4 | 30-day dry-run on always-on machine + `scripts/report.py` | ⬜ |
@@ -44,10 +44,16 @@ cooldown after 2 straight losses · stoploss on-exchange · fees 0.16% RT +
 
 ## Kraken-specific notes
 
-- Kraken's OHLCV endpoint only serves the last 720 candles, so Phase 1's
-  2-year history download must use trades-based download:
-  `docker compose run --rm freqtrade download-data --exchange kraken --dl-trades -t 1h 4h --timerange 20240101-`
-  This is slow (hours for 2 years) — run it once, keep `user_data/data/`.
+- Kraken's OHLCV endpoint only serves the last 720 candles, and Freqtrade
+  blocks plain candle downloads for Kraken entirely — all history comes from
+  trades-based download (`--dl-trades`). The `data-daemon` compose service
+  handles this in the background: a one-time 2y backfill of BTC/ETH/SOL
+  (many hours; `user_data/data/.backfill_complete` marks it done), then an
+  incremental refresh of every screened pair every 6h. Check progress with
+  `docker compose logs -f data-daemon`. Keep `user_data/data/` — it is the
+  product of that work.
+- Refresh the pair whitelist anytime with `python scripts/screener.py`, then
+  copy new pairs into `user_data/config.json` and restart.
 - Freqtrade handles Kraken's XBT↔BTC naming; always write `BTC/USD` in configs.
 - Rate limit is set to 3100ms in config per Freqtrade's Kraken recommendation.
 
