@@ -69,6 +69,26 @@ and tests stay in the repo as reference; revisit only with a fundamentally
 different gating idea (e.g., order-flow or higher-timeframe confluence),
 not more parameter tuning.
 
+## Addendum 2 (2026-07-08): re-validation on real Kraken data
+
+The official Kraken OHLCVT archive (through 2025-12-31) replaced the fragile
+trades backfill. Tuned params, untouched, on Kraken 2025 (pure OOS):
+
+| Metric | TrendBreak (Coinbase OOS) | TrendBreak (Kraken 2025) | SolCross (Coinbase OOS) | SolCross (Kraken 2025) |
+|---|---|---|---|---|
+| Trades | 61 | 58 | 8 | 9 |
+| Profit | +10.6% | +5.6% | +0.8% | +0.1% |
+| Profit factor | 1.28 | **1.15** | 1.56 | **1.11** |
+| Max drawdown | 8.6% | 11.7% | 1.1% | 1.3% |
+
+Read: both strategies survive on ground truth — positive, no collapse, PF
+degradation within the 30% rule — but the edge is **thinner than Coinbase
+data suggested** (venue price differences matter at this fee level). Neither
+clears PF >1.3 on real Kraken data. Verdict unchanged in direction, firmer
+in degree: **dry-run only; no live-capital case exists today.** The dry-run
+divergence gate (restarted 2026-07-08 after ~6 days of machine downtime;
+earliest decision ~2026-08-07) is now the deciding evidence.
+
 ## Deployed
 
 Both dry-run bots now run the tuned parameters (auto-loaded from the .json
