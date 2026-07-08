@@ -89,6 +89,24 @@ in degree: **dry-run only; no live-capital case exists today.** The dry-run
 divergence gate (restarted 2026-07-08 after ~6 days of machine downtime;
 earliest decision ~2026-08-07) is now the deciding evidence.
 
+## Addendum 3 (2026-07-08): BTC 200-day-MA regime filter — TESTED, REJECTED
+
+Hypothesis (a priori, untuned): only take longs while BTC > its 200-day MA,
+since "both strategies lost most in chop". One-shot test on real Kraken
+data, both periods, pre-committed adopt-only-if-better-in-both rule:
+
+| Kraken data | TrendBreak base | TrendBreak +filter | SolCross base | SolCross +filter |
+|---|---|---|---|---|
+| 2024 PF | 1.07 | 0.83 ❌ | 0.53 | 0.07 ❌ |
+| 2025 PF | 1.15 | 0.99 ❌ | 1.11 | 0.00 ❌ |
+
+**Worse everywhere — rejected and reverted.** The intuition was wrong:
+TrendBreak's best trades are recovery breakouts that fire while BTC is
+still *below* the 200-day MA; the filter kept only late, chasing entries.
+Lesson recorded so this "obvious improvement" doesn't get re-proposed.
+(BTC_USD-1d.feather retained in data/kraken for future regime experiments;
+2024 Kraken baselines recorded here for the first time.)
+
 ## Deployed
 
 Both dry-run bots now run the tuned parameters (auto-loaded from the .json
