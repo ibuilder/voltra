@@ -107,6 +107,51 @@ Lesson recorded so this "obvious improvement" doesn't get re-proposed.
 (BTC_USD-1d.feather retained in data/kraken for future regime experiments;
 2024 Kraken baselines recorded here for the first time.)
 
+## Addendum 4 (2026-07-08): multi-regime stress test on 6 years of Kraken data
+
+History extended to 2020 (SOL: mid-2021 listing). The 2024-tuned parameters,
+untouched, run against every year they never saw:
+
+**TrendBreak** (params fitted on 2024 only):
+
+| Year | Market | Strategy | PF | Max DD | Trades |
+|---|---|---|---|---|---|
+| 2021 | +264% | +25.8% | 1.45 | 7.5% | 95 |
+| 2022 bear | **−76%** | **+13.4%** | **2.28** | 3.7% | 22 |
+| 2023 | +390% | +11.0% | 1.18 | 13.5% | 97 |
+| 2024 (training) | — | +3.6% | 1.07 | 13.9% | 86 |
+| 2025 (OOS) | — | +5.6% | 1.15 | 8.6% | 58 |
+
+**Profitable in all five periods, including the −76% bear year** — the 4h
+trend filter sat 2022 out (22 trades) and monetized relief rallies. This is
+the strongest evidence yet that the configuration is robust rather than
+lucky. Notable honesty item: it massively underperforms buy-and-hold in
+bull years (+26% vs +264%) — that is the price of capped risk, not a bug.
+No re-hyperopt warranted: parameters that survive five regimes untouched
+should not be touched.
+
+**SolCross** (SOL only):
+
+| Period | Market | Strategy | PF | Trades |
+|---|---|---|---|---|
+| 2021 H2 | +388% | +5.6% | 2.60 | 17 |
+| 2022 bear | −94% | +0.7% | 1.69 | 4 |
+| 2023 | +921% | −2.0% | 0.34 | 10 |
+| 2024 (training) | — | −2.1% | 0.53 | 15 |
+| 2025 (OOS) | — | +0.1% | 1.11 | 9 |
+
+Two losing years, tiny samples everywhere, cumulative ≈ +2% over 4.5 years.
+The lead-lag edge is **indistinguishable from noise across regimes**.
+Verdict: stays in dry-run as a cheap experiment, but expectations should be
+set to "likely retired at the 30-day review" unless dry-run surprises.
+
+**What more data did and didn't do**: predictions are unchanged — the rules
+are the rules. What changed is *confidence*: TrendBreak graduated from
+"stable on 18 months" to "profitable across bull, bear, chop, and recovery",
+and SolCross was exposed as regime-fragile. Future data uses: Kraken's
+quarterly incremental archives will add 2026 as fresh OOS windows, and the
+6-year dataset is the training corpus if FreqAI (Phase 6) ever happens.
+
 ## Deployed
 
 Both dry-run bots now run the tuned parameters (auto-loaded from the .json
