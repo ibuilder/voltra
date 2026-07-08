@@ -152,6 +152,37 @@ and SolCross was exposed as regime-fragile. Future data uses: Kraken's
 quarterly incremental archives will add 2026 as fresh OOS windows, and the
 6-year dataset is the training corpus if FreqAI (Phase 6) ever happens.
 
+## Addendum 5 (2026-07-08): Q1 2026 fresh OOS + alternative data sources
+
+**Q1 2026 imported** (Kraken quarterly archive; data now 2020 → 2026-03-31).
+Fresh OOS on a bear quarter (BTC −28%, SOL −33%):
+
+- TrendBreak: 6 trades, all losses, −5.2% (risk caps held: max DD 5.2%).
+- SolCross: 1 trade, ≈flat.
+- PF by year now reads 1.45 → 2.28 → 1.18 → 1.07 → 1.15 → 0.00(Q1'26,n=6).
+  Small sample, but the trajectory supports the edge-decay concern. The
+  dry-run gate remains the deciding evidence.
+
+**Alternative data acquired** (user_data/data/external/):
+
+- `fear_greed_daily.feather` — crypto Fear & Greed index, 3,076 days
+  (2018-02 → today), alternative.me free API.
+- `gdelt_bitcoin_tone_daily.feather` — GDELT average news tone for bitcoin
+  coverage, 2,358 days (2020 → today). GDELT indexes mainstream outlets
+  (Reuters, WSJ, AP, etc.) — the legitimate route to "news data"; the
+  outlets' own archives are paywalled/licensed and not scrapeable.
+
+**Fear & Greed entry gate (block at Extreme Greed ≥80, prior-day value,
+pre-committed) — TESTED, REJECTED**: worse in 2021 (PF 1.45→1.35, profit
++25.8%→+15.6%) and 2024 (1.07→1.06), never better in any period. Euphoric
+breakouts were net winners — same lesson as the 200d-MA filter (addendum 3):
+this strategy's edge concentrates in hot markets; filters that avoid heat
+amputate the edge. Experiment preserved in TrendBreakFngStrategy.py
+(DO NOT DEPLOY header).
+
+GDELT tone is stored untested — reserved as a FreqAI feature candidate
+(Phase 6) rather than another one-shot gate, to limit multiple-testing bias.
+
 ## Deployed
 
 Both dry-run bots now run the tuned parameters (auto-loaded from the .json

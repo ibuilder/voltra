@@ -24,7 +24,8 @@ LEGACY = {"BTC": "XBT", "DOGE": "XDG"}
 TIMEFRAMES = {"60": "1h", "240": "4h"}
 
 
-def convert(zf: zipfile.ZipFile, member: str, out_file: Path, since: str) -> str:
+def convert(zf: zipfile.ZipFile, member: str, out_file: Path, since: str,
+            merge: bool = False) -> str:
     with zf.open(member) as fh:
         df = pd.read_csv(
             fh, header=None,
@@ -32,10 +33,14 @@ def convert(zf: zipfile.ZipFile, member: str, out_file: Path, since: str) -> str
         )
     df["date"] = pd.to_datetime(df["ts"], unit="s", utc=True)
     df = df[df["date"] >= pd.Timestamp(since, tz="UTC")]
+    df = df[["date", "open", "high", "low", "close", "volume"]].astype(
+        {c: "float64" for c in ("open", "high", "low", "close", "volume")}
+    )
+    if merge and out_file.exists():
+        existing = pd.read_feather(out_file)
+        df = pd.concat([existing, df])
     df = (
-        df[["date", "open", "high", "low", "close", "volume"]]
-        .astype({c: "float64" for c in ("open", "high", "low", "close", "volume")})
-        .drop_duplicates(subset="date")
+        df.drop_duplicates(subset="date")
         .sort_values("date")
         .reset_index(drop=True)
     )
@@ -57,6 +62,8 @@ def main() -> int:
                                  "NEAR", "LTC", "WLD", "AAVE"])
     parser.add_argument("--since", default="2023-01-01")
     parser.add_argument("--out", default="user_data/data/kraken")
+    parser.add_argument("--merge", action="store_true",
+                        help="append to existing feathers (quarterly updates)")
     args = parser.parse_args()
 
     out_dir = Path(args.out)
@@ -72,7 +79,7 @@ def main() -> int:
                     print(f"  {name}: NOT IN ARCHIVE - skipped")
                     continue
                 out_file = out_dir / f"{symbol}_USD-{tf}.feather"
-                print(convert(zf, members[name], out_file, args.since))
+                print(convert(zf, members[name], out_file, args.since, args.merge))
     return 0
 
 
