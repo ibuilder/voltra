@@ -17,6 +17,11 @@ services:
       --db-url sqlite:////freqtrade/user_data/tradesv3.dryrun.sqlite
       --config /freqtrade/user_data/config.json
       --strategy TrendBreakStrategy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8080/api/v1/ping', timeout=5)"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
 
   # Bot #2: BTC/ETH -> SOL cross-asset lead-lag strategy. One bot = one
   # container + one config + one port + one database. Register it in FreqUI
@@ -37,6 +42,28 @@ services:
       --db-url sqlite:////freqtrade/user_data/tradesv3.cross.dryrun.sqlite
       --config /freqtrade/user_data/config.cross.json
       --strategy SolCrossSignalStrategy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8080/api/v1/ping', timeout=5)"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+
+  # Daily dry-run vs backtest divergence report -> docs/reports/.
+  # Talks to the bots over the compose network, so no host scheduler needed.
+  reporter:
+    image: freqtradeorg/freqtrade:stable
+    restart: unless-stopped
+    container_name: solsignal-reporter
+    volumes:
+      - "./scripts:/freqtrade/scripts:ro"
+      - "./docs:/freqtrade/docs"
+    env_file:
+      - .env
+    environment:
+      - SOLSIGNAL_BOT1_URL=http://freqtrade:8080
+      - SOLSIGNAL_BOT2_URL=http://freqtrade-cross:8080
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["while true; do python /freqtrade/scripts/report.py --out-dir /freqtrade/docs/reports || echo '[reporter] failed - retrying next cycle'; sleep 86400; done"]
 
   # Custom SolSignal dashboard (Tailwind, static) — reads the freqtrade REST API.
   dashboard:

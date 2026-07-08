@@ -12,6 +12,7 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
 from base64 import b64encode
 from datetime import datetime, timezone
@@ -21,25 +22,32 @@ import requests
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Walk-forward OOS expectations (docs/walkforward-report-2026-07-02.md):
-# per-week figures derived from the 2025-01-01 -> 2026-07-02 OOS window
-# (78.1 weeks, $5,000 start). Update after every re-hyperopt.
-DRY_RUN_START = datetime(2026, 7, 2, tzinfo=timezone.utc)
-EXPECTATIONS = {
-    "http://127.0.0.1:8080": {
+# Walk-forward expectations re-based on REAL Kraken 2025 OOS data
+# (docs/walkforward-report-2026-07-02.md addendum 2: 52.1 weeks, $5,000
+# start). Update after every re-hyperopt.
+DRY_RUN_START = datetime(2026, 7, 8, tzinfo=timezone.utc)
+BOTS = [
+    {
         "name": "solsignal-dry (TrendBreak)",
-        "trades_per_week": 61 / 78.1,
-        "profit_usd_per_week": 0.1058 * 5000 / 78.1,
+        "url": os.environ.get("SOLSIGNAL_BOT1_URL", "http://127.0.0.1:8080"),
+        "trades_per_week": 58 / 52.1,
+        "profit_usd_per_week": 0.0561 * 5000 / 52.1,
     },
-    "http://127.0.0.1:8081": {
+    {
         "name": "solsignal-cross (SolCross)",
-        "trades_per_week": 8 / 78.1,
-        "profit_usd_per_week": 0.0077 * 5000 / 78.1,
+        "url": os.environ.get("SOLSIGNAL_BOT2_URL", "http://127.0.0.1:8081"),
+        "trades_per_week": 9 / 52.1,
+        "profit_usd_per_week": 0.0014 * 5000 / 52.1,
     },
-}
+]
 
 
 def load_env_credentials() -> tuple[str, str]:
+    """Prefer process env (set by docker env_file); fall back to .env file."""
+    user = os.environ.get("FREQTRADE__API_SERVER__USERNAME")
+    password = os.environ.get("FREQTRADE__API_SERVER__PASSWORD")
+    if user and password:
+        return user, password
     creds = {}
     for line in (ROOT / ".env").read_text().splitlines():
         if line.startswith("FREQTRADE__API_SERVER__") and "=" in line:
@@ -118,12 +126,13 @@ Last 8 days:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stdout", action="store_true", help="print, don't write")
+    parser.add_argument("--out-dir", default=str(ROOT / "docs" / "reports"))
     args = parser.parse_args()
 
     user, password = load_env_credentials()
     today = datetime.now(timezone.utc)
-    body = "\n".join(bot_section(base, exp, user, password)
-                     for base, exp in EXPECTATIONS.items())
+    body = "\n".join(bot_section(bot["url"], bot, user, password)
+                     for bot in BOTS)
     report = (
         f"# SolSignal weekly report — {today:%Y-%m-%d}\n\n"
         f"{body}\n"
@@ -137,7 +146,7 @@ def main() -> int:
     if args.stdout:
         print(report)
     else:
-        out = ROOT / "docs" / "reports" / f"weekly-{today:%Y-%m-%d}.md"
+        out = Path(args.out_dir) / f"report-{today:%Y-%m-%d}.md"
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(report, encoding="utf-8")
         print(f"written: {out}")
