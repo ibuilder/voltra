@@ -7,12 +7,14 @@ about whether it does, at a price you cap yourself.
 
 ## A. Machine readiness (do these NOW — they protect the dry-run gate)
 
-- [ ] **Docker Desktop autostart** (its absence cost 6 days of dry-run in
-  July). Either enable "Start Docker Desktop when you sign in" in Docker
-  Desktop Settings → General, or run once in an elevated prompt:
-  `reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "Docker Desktop" /t REG_SZ /d "\"C:\Program Files\Docker\Docker\Docker Desktop.exe\"" /f`
-- [ ] **Disable sleep on AC power**: `powercfg /change standby-timeout-ac 0`
-  and `powercfg /change hibernate-timeout-ac 0`
+- [ ] **One-command autostart install** (recommended). In PowerShell:
+  `powershell -ExecutionPolicy Bypass -File C:\Server\solsignal\scripts\install-autostart.ps1`
+  This copies `scripts\start-solsignal.cmd` into your Startup folder (brings
+  the whole stack up at every login) and disables AC sleep/hibernate. No admin
+  needed. Undo instructions print at the end. Absence of this cost 6 days of
+  dry-run in July — it is the #1 production task.
+- [ ] Verify after next login: `docker compose ps` shows all 4 containers up,
+  and `user_data\logs\autostart.log` has a fresh "compose up -d done" line.
 - [ ] **Or better: a small VPS** (~$5–10/mo, e.g. Hetzner/DigitalOcean).
   `git clone` + copy `.env` + `docker compose up -d` is the whole migration.
   A box that reboots or sleeps will eventually miss a stop-loss placement
