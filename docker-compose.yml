@@ -68,6 +68,50 @@ services:
     # the next cycle instead of persisting a stale UNREACHABLE report all day.
     command: ["while true; do python /freqtrade/scripts/report.py --out-dir /freqtrade/docs/reports || echo '[reporter] failed - retrying next cycle'; sleep 21600; done"]
 
+  # Bot #3 (EXPERIMENTAL): trades ONLY on external TradingView signals routed
+  # through webhook-relay. Isolated db/port; entries come via REST /forceenter
+  # but are still wrapped in ATR stop + 1% sizing + protections. Dry-run.
+  freqtrade-webhook:
+    image: freqtradeorg/freqtrade:stable
+    restart: unless-stopped
+    container_name: solsignal-freqtrade-webhook
+    volumes:
+      - "./user_data:/freqtrade/user_data"
+    ports:
+      - "127.0.0.1:8082:8080"
+    env_file:
+      - .env
+    command: >
+      trade
+      --logfile /freqtrade/user_data/logs/freqtrade-webhook.log
+      --db-url sqlite:////freqtrade/user_data/tradesv3.webhook.dryrun.sqlite
+      --config /freqtrade/user_data/config.webhook.json
+      --strategy WebhookRelayStrategy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8080/api/v1/ping', timeout=5)"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+
+  # TradingView -> Freqtrade webhook relay (validates shared secret, forwards
+  # to freqtrade-webhook REST). Bound to localhost: expose to the internet ONLY
+  # behind HTTPS + the shared secret (reverse proxy / Cloudflare Tunnel).
+  webhook-relay:
+    image: freqtradeorg/freqtrade:stable
+    restart: unless-stopped
+    container_name: solsignal-webhook-relay
+    volumes:
+      - "./webhook_relay:/relay:ro"
+    env_file:
+      - .env
+    environment:
+      - RELAY_FREQTRADE_URL=http://freqtrade-webhook:8080
+    ports:
+      - "127.0.0.1:8090:8090"
+    working_dir: /relay
+    entrypoint: ["python"]
+    command: ["/relay/relay.py"]
+
   # Custom SolSignal dashboard (Tailwind, static) — reads the freqtrade REST API.
   dashboard:
     image: nginx:alpine

@@ -35,8 +35,12 @@ Current fleet:
 
 | Bot | Container | API port | Strategy | Pairs |
 |---|---|---|---|---|
-| solsignal-dry | solsignal-freqtrade | 8080 | PlaceholderStrategy (inert) | 17 |
+| solsignal-dry | solsignal-freqtrade | 8080 | TrendBreakStrategy (tuned) | BTC/ETH/SOL/XRP |
 | solsignal-cross | solsignal-freqtrade-cross | 8081 | SolCrossSignalStrategy | SOL/USD |
+| solsignal-webhook | solsignal-freqtrade-webhook | 8082 | WebhookRelayStrategy (TradingView-driven, experimental) | BTC/ETH/SOL/XRP |
+
+Plus `webhook-relay` (:8090) bridging TradingView alerts → bot #3 — see
+[docs/tradingview-integration.md](docs/tradingview-integration.md).
 
 To view a bot:
 - **FreqUI** (http://127.0.0.1:8080): top-left bot selector → "Add new bot" →
