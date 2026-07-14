@@ -28,10 +28,11 @@ ROOT = Path(__file__).resolve().parent.parent
 DRY_RUN_START = datetime(2026, 7, 8, tzinfo=timezone.utc)
 BOTS = [
     {
-        "name": "solsignal-dry (TrendBreak)",
+        # BTC/ETH/SOL/XRP validated basket, 2025 OOS: 72 trades, +3.19%.
+        "name": "solsignal-dry (TrendBreak, BTC/ETH/SOL/XRP)",
         "url": os.environ.get("SOLSIGNAL_BOT1_URL", "http://127.0.0.1:8080"),
-        "trades_per_week": 58 / 52.1,
-        "profit_usd_per_week": 0.0561 * 5000 / 52.1,
+        "trades_per_week": 72 / 52.1,
+        "profit_usd_per_week": 0.0319 * 5000 / 52.1,
     },
     {
         "name": "solsignal-cross (SolCross)",

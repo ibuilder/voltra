@@ -75,19 +75,9 @@ services:
     ports:
       - "127.0.0.1:8899:80"
 
-  # Background data storage: one-time 2y backfill, then 6-hourly refresh.
-  # Single writer to user_data/data/ — keep all downloads in this service.
-  data-daemon:
-    image: freqtradeorg/freqtrade:stable
-    restart: unless-stopped
-    container_name: solsignal-data-daemon
-    volumes:
-      - "./user_data:/freqtrade/user_data"
-      - "./scripts:/freqtrade/scripts:ro"
-    env_file:
-      - .env
-    environment:
-      # Downloader never serves the API; avoids port/credential coupling.
-      - FREQTRADE__API_SERVER__ENABLED=false
-    entrypoint: ["/bin/sh"]
-    command: ["/freqtrade/scripts/data_daemon.sh"]
+  # NOTE: the old data-daemon was REMOVED 2026-07-09. Its --dl-trades --days 14
+  # refresh rebuilt candles from a 14-day trade window and OVERWROTE the deep
+  # archive feathers, silently truncating backtest history to 14 days.
+  # Backtest data now comes from scripts/import_kraken_csv.py (quarterly Kraken
+  # archive). Live bots self-maintain recent candles via the exchange API in
+  # trade mode, so no background downloader is needed.
