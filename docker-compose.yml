@@ -63,7 +63,10 @@ services:
       - SOLSIGNAL_BOT1_URL=http://freqtrade:8080
       - SOLSIGNAL_BOT2_URL=http://freqtrade-cross:8080
     entrypoint: ["/bin/sh", "-c"]
-    command: ["while true; do python /freqtrade/scripts/report.py --out-dir /freqtrade/docs/reports || echo '[reporter] failed - retrying next cycle'; sleep 86400; done"]
+    # Regenerate every 6h (not 24h): the date-stamped file is overwritten
+    # through the day, so a snapshot taken during a bot restart self-heals by
+    # the next cycle instead of persisting a stale UNREACHABLE report all day.
+    command: ["while true; do python /freqtrade/scripts/report.py --out-dir /freqtrade/docs/reports || echo '[reporter] failed - retrying next cycle'; sleep 21600; done"]
 
   # Custom SolSignal dashboard (Tailwind, static) — reads the freqtrade REST API.
   dashboard:
