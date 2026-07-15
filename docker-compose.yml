@@ -1,12 +1,29 @@
+# SolSignal stack. All services: dry-run only, log-rotated, no-new-privileges.
+# Enterprise ingress via Caddy (TLS). See docs/enterprise-readiness.md.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-hardening: &hardening
+  security_opt:
+    - "no-new-privileges:true"
+
 services:
   freqtrade:
     image: freqtradeorg/freqtrade:stable
     restart: unless-stopped
     container_name: solsignal-freqtrade
+    <<: *hardening
+    logging: *logging
+    mem_limit: 1g
     volumes:
       - "./user_data:/freqtrade/user_data"
     # FreqUI is bundled in the image and served by the api_server at this port.
-    # Bound to localhost only — front with a reverse proxy + TLS before exposing.
+    # Bound to localhost only — front with the Caddy reverse proxy + TLS before
+    # exposing. Production lockdown: remove this ports line so only Caddy reaches it.
     ports:
       - "127.0.0.1:8080:8080"
     env_file:
@@ -30,6 +47,9 @@ services:
     image: freqtradeorg/freqtrade:stable
     restart: unless-stopped
     container_name: solsignal-freqtrade-cross
+    <<: *hardening
+    logging: *logging
+    mem_limit: 1g
     volumes:
       - "./user_data:/freqtrade/user_data"
     ports:
@@ -48,26 +68,6 @@ services:
       timeout: 10s
       retries: 5
 
-  # Daily dry-run vs backtest divergence report -> docs/reports/.
-  # Talks to the bots over the compose network, so no host scheduler needed.
-  reporter:
-    image: freqtradeorg/freqtrade:stable
-    restart: unless-stopped
-    container_name: solsignal-reporter
-    volumes:
-      - "./scripts:/freqtrade/scripts:ro"
-      - "./docs:/freqtrade/docs"
-    env_file:
-      - .env
-    environment:
-      - SOLSIGNAL_BOT1_URL=http://freqtrade:8080
-      - SOLSIGNAL_BOT2_URL=http://freqtrade-cross:8080
-    entrypoint: ["/bin/sh", "-c"]
-    # Regenerate every 6h (not 24h): the date-stamped file is overwritten
-    # through the day, so a snapshot taken during a bot restart self-heals by
-    # the next cycle instead of persisting a stale UNREACHABLE report all day.
-    command: ["while true; do python /freqtrade/scripts/report.py --out-dir /freqtrade/docs/reports || echo '[reporter] failed - retrying next cycle'; sleep 21600; done"]
-
   # Bot #3 (EXPERIMENTAL): trades ONLY on external TradingView signals routed
   # through webhook-relay. Isolated db/port; entries come via REST /forceenter
   # but are still wrapped in ATR stop + 1% sizing + protections. Dry-run.
@@ -75,6 +75,9 @@ services:
     image: freqtradeorg/freqtrade:stable
     restart: unless-stopped
     container_name: solsignal-freqtrade-webhook
+    <<: *hardening
+    logging: *logging
+    mem_limit: 1g
     volumes:
       - "./user_data:/freqtrade/user_data"
     ports:
@@ -95,11 +98,13 @@ services:
 
   # TradingView -> Freqtrade webhook relay (validates shared secret, forwards
   # to freqtrade-webhook REST). Bound to localhost: expose to the internet ONLY
-  # behind HTTPS + the shared secret (reverse proxy / Cloudflare Tunnel).
+  # through Caddy (TLS) — the relay's shared secret is the auth.
   webhook-relay:
     image: freqtradeorg/freqtrade:stable
     restart: unless-stopped
     container_name: solsignal-webhook-relay
+    <<: *hardening
+    logging: *logging
     volumes:
       - "./webhook_relay:/relay:ro"
     env_file:
@@ -112,19 +117,87 @@ services:
     entrypoint: ["python"]
     command: ["/relay/relay.py"]
 
+  # Daily dry-run vs backtest divergence report -> docs/reports/.
+  reporter:
+    image: freqtradeorg/freqtrade:stable
+    restart: unless-stopped
+    container_name: solsignal-reporter
+    <<: *hardening
+    logging: *logging
+    volumes:
+      - "./scripts:/freqtrade/scripts:ro"
+      - "./docs:/freqtrade/docs"
+    env_file:
+      - .env
+    environment:
+      - SOLSIGNAL_BOT1_URL=http://freqtrade:8080
+      - SOLSIGNAL_BOT2_URL=http://freqtrade-cross:8080
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["while true; do python /freqtrade/scripts/report.py --out-dir /freqtrade/docs/reports || echo '[reporter] failed - retrying next cycle'; sleep 21600; done"]
+
+  # Health monitor + alerting. Polls every bot; alerts on unreachable/stopped
+  # and fires the DRY-RUN TRIPWIRE if any bot reports dry_run=false.
+  healthwatch:
+    image: freqtradeorg/freqtrade:stable
+    restart: unless-stopped
+    container_name: solsignal-healthwatch
+    <<: *hardening
+    logging: *logging
+    volumes:
+      - "./ops:/ops:ro"
+    env_file:
+      - .env
+    working_dir: /ops
+    entrypoint: ["python"]
+    command: ["/ops/healthwatch.py"]
+
+  # Automated backups of trade DBs + configs (NOT secrets) with retention.
+  backup:
+    image: freqtradeorg/freqtrade:stable
+    restart: unless-stopped
+    container_name: solsignal-backup
+    <<: *hardening
+    logging: *logging
+    volumes:
+      - "./ops:/ops:ro"
+      - "./user_data:/freqtrade/user_data"
+    entrypoint: ["python"]
+    command: ["/ops/backup.py"]
+
   # Custom SolSignal dashboard (Tailwind, static) — reads the freqtrade REST API.
   dashboard:
     image: nginx:alpine
     restart: unless-stopped
     container_name: solsignal-dashboard
+    <<: *hardening
+    logging: *logging
     volumes:
       - "./dashboard:/usr/share/nginx/html:ro"
     ports:
       - "127.0.0.1:8899:80"
 
-  # NOTE: the old data-daemon was REMOVED 2026-07-09. Its --dl-trades --days 14
-  # refresh rebuilt candles from a 14-day trade window and OVERWROTE the deep
-  # archive feathers, silently truncating backtest history to 14 days.
-  # Backtest data now comes from scripts/import_kraken_csv.py (quarterly Kraken
-  # archive). Live bots self-maintain recent candles via the exchange API in
-  # trade mode, so no background downloader is needed.
+  # Hardened TLS ingress. Local: internal CA (self-signed). Production: set
+  # SOLSIGNAL_DOMAIN + expose 80/443 publicly for automatic Let's Encrypt.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    container_name: solsignal-caddy
+    <<: *hardening
+    logging: *logging
+    volumes:
+      - "./ops/Caddyfile:/etc/caddy/Caddyfile:ro"
+      - "caddy_data:/data"
+      - "caddy_config:/config"
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8443:443"
+      # Production: also publish "80:80" and "443:443" for ACME + public access.
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+# NOTE: the old data-daemon was REMOVED 2026-07-09 — its --dl-trades --days 14
+# refresh clobbered the deep archive. Backtest data comes from
+# scripts/import_kraken_csv.py; live bots self-maintain recent candles.

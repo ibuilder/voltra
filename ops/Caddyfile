@@ -1,0 +1,52 @@
+# SolSignal hardened ingress (stock Caddy 2).
+#
+# Single TLS-terminating front door. Caddy auto-provisions Let's Encrypt certs
+# when SOLSIGNAL_DOMAIN is a real public domain (ports 80/443 reachable); for
+# local use (SOLSIGNAL_DOMAIN=localhost) it uses its internal CA — TLS is still
+# on, just self-signed. This also gives the TradingView relay a real HTTPS URL.
+#
+# .env:  SOLSIGNAL_DOMAIN=trade.example.com   CADDY_ACME_EMAIL=you@example.com
+#
+# Optional hardening not enabled here (need a config choice / plugin):
+#   - basic_auth on the API routes (generate a bcrypt hash; FreqUI already has
+#     its own JWT auth so this is belt-and-suspenders)
+#   - rate_limit (requires a custom Caddy build with the caddy-ratelimit module)
+
+{
+	admin off
+	email {$CADDY_ACME_EMAIL:admin@example.com}
+}
+
+(secure_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+}
+
+{$SOLSIGNAL_DOMAIN:localhost} {
+	# Bind all container interfaces so the published port reaches Caddy even
+	# when the site name is "localhost" (which otherwise binds loopback-only).
+	bind 0.0.0.0
+	import secure_headers
+
+	# FreqUI (bot #1) — full control panel, has its own JWT login
+	handle_path /frequi/* {
+		reverse_proxy freqtrade:8080
+	}
+
+	# TradingView webhook relay — auth is the relay's shared secret, so no
+	# extra gate here; TLS + headers still apply. Point TradingView at
+	#   https://<domain>/webhook/webhook
+	handle_path /webhook/* {
+		reverse_proxy webhook-relay:8090
+	}
+
+	# Custom read-only dashboard at the root
+	handle {
+		reverse_proxy dashboard:80
+	}
+}

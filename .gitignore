@@ -20,3 +20,6 @@ __pycache__/
 
 # Notebooks
 .ipynb_checkpoints/
+
+# Backup archives (data is reproducible; do not bloat the repo)
+user_data/backups/

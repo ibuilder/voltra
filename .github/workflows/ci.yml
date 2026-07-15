@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test deps
+        # Tests exercise pure pandas strategy logic + the relay's stdlib signal
+        # logic — no freqtrade/docker needed.
+        run: pip install --quiet pandas numpy pyarrow requests pytest
+
+      - name: Run tests
+        run: python -m pytest tests/ -q
+
+      - name: Validate JSON configs and params
+        run: |
+          for f in user_data/config*.json user_data/strategies/*.json user_data/pairlist.json; do
+            python -m json.tool "$f" > /dev/null && echo "ok $f"
+          done
+
+  compose-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet && echo "compose valid"
