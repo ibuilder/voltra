@@ -1,0 +1,22 @@
+# systemd unit: start the SolSignal stack on boot (Linux VPS).
+# Install:
+#   sudo cp deploy/solsignal.service /etc/systemd/system/solsignal.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now solsignal
+# Assumes the repo lives at /opt/solsignal (edit WorkingDirectory if not).
+
+[Unit]
+Description=SolSignal trading stack (Docker Compose)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/solsignal
+ExecStart=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

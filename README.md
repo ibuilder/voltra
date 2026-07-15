@@ -16,6 +16,16 @@ never enables live trading. Build/release and GitHub setup:
 **Important:** read [DISCLAIMER.md](DISCLAIMER.md) — experimental software,
 trading carries real risk of loss, not financial advice, default is paper only.
 
+## Host it 24/7 for free
+
+To run the stack always-on and reach it from anywhere, deploy to a free VM:
+[docs/deploy-oracle-free.md](docs/deploy-oracle-free.md) (Oracle Cloud
+Always-Free ARM, $0/mo). Production overlay `docker-compose.prod.yml` exposes
+only Caddy (TLS) publicly; `scripts/deploy.sh` + `deploy/solsignal.service`
+make it turnkey and boot-persistent. At small capital, free hosting is the
+right call — a paid VPS would cost more than the strategy is expected to earn
+(see the cost analysis in that guide).
+
 ## Setup (Docker directly)
 
 1. Install Docker Desktop (done) and make sure it's running.
