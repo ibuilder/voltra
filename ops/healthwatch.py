@@ -80,6 +80,16 @@ def token(name: str, url: str) -> str | None:
         return None
 
 
+def classify_config(cfg: dict) -> tuple[str, str]:
+    """Pure decision from a bot's show_config. Returns (state, detail) with
+    state in ok|warn|critical. The dry_run tripwire is the top priority."""
+    if cfg.get("dry_run") is False:
+        return "critical", "DRY-RUN TRIPWIRE: bot is LIVE (dry_run=false) — unauthorized?"
+    if cfg.get("state") != "running":
+        return "warn", f"state={cfg.get('state')}"
+    return "ok", f"running, dry_run, {cfg.get('strategy')}"
+
+
 def check(name: str, url: str) -> tuple[str, str]:
     """Return (state, detail). state in ok|warn|critical."""
     tok = token(name, url)
@@ -95,12 +105,7 @@ def check(name: str, url: str) -> tuple[str, str]:
         cfg = r.json()
     except requests.RequestException as e:
         return "critical", f"API error: {type(e).__name__}"
-
-    if cfg.get("dry_run") is False:
-        return "critical", "DRY-RUN TRIPWIRE: bot is LIVE (dry_run=false) — unauthorized?"
-    if cfg.get("state") != "running":
-        return "warn", f"state={cfg.get('state')}"
-    return "ok", f"running, dry_run, {cfg.get('strategy')}"
+    return classify_config(cfg)
 
 
 def main() -> None:
