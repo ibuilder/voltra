@@ -1,0 +1,57 @@
+name: Release desktop controller
+
+# Build the SolSignal Controller .exe/.msi and publish a GitHub Release with a
+# signed updater manifest (latest.json). Trigger by pushing a version tag:
+#   git tag app-v0.1.0 && git push origin app-v0.1.0
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   TAURI_SIGNING_PRIVATE_KEY           (from: npx @tauri-apps/cli signer generate)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+# GITHUB_TOKEN is provided automatically.
+
+on:
+  push:
+    tags:
+      - "app-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Install frontend deps
+        working-directory: desktop
+        run: npm install
+
+      - name: Build, sign, and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: "SolSignal Controller ${{ github.ref_name }}"
+          releaseBody: "See CHANGELOG.md. Signed auto-update artifacts attached."
+          releaseDraft: true
+          prerelease: false
+          # tauri-action emits latest.json (the updater manifest) automatically
+          # when the updater plugin is active and a signing key is present.
+          includeUpdaterJson: true

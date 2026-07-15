@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SolSignal Controller</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, sans-serif; background: #0b1220; color: #e2e8f0; }
+  header { padding: 16px 20px; border-bottom: 1px solid #1e2a44; }
+  h1 { margin: 0; font-size: 18px; }
+  h1 span { color: #fbbf24; }
+  .mode { display:inline-block; margin-left:8px; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; background:#0c4a6e; color:#7dd3fc; vertical-align:middle; }
+  main { padding: 16px 20px; }
+  .row { display:flex; gap:10px; margin-bottom:14px; }
+  button { flex:1; padding:10px; border-radius:8px; border:1px solid #334155; background:#1e293b; color:#e2e8f0; font-weight:600; cursor:pointer; }
+  button.primary { background:#fbbf24; color:#0b1220; border-color:#fbbf24; }
+  button:hover { filter:brightness(1.1); }
+  .svc { display:flex; justify-content:space-between; padding:7px 10px; border:1px solid #1e2a44; border-radius:6px; margin-bottom:6px; }
+  .ok { color:#34d399; } .bad { color:#fb7185; } .warn { color:#fbbf24; }
+  label { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:13px; color:#94a3b8; }
+  .path { margin-top:12px; }
+  .path input { width:100%; padding:8px; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#e2e8f0; }
+  footer { padding:12px 20px; font-size:11px; color:#64748b; border-top:1px solid #1e2a44; }
+  #msg { min-height:18px; font-size:12px; color:#94a3b8; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Sol<span>Signal</span> Controller <span class="mode">DRY-RUN</span></h1>
+  </header>
+  <main>
+    <div class="row">
+      <button class="primary" onclick="up()">▶ Start stack</button>
+      <button onclick="down()">■ Stop stack</button>
+    </div>
+    <div class="row">
+      <button onclick="refresh()">↻ Refresh status</button>
+      <button onclick="dashboard()">Open dashboard ↗</button>
+    </div>
+    <div id="services"></div>
+    <label><input type="checkbox" id="autostart" onchange="toggleAutostart()"> Start automatically when I sign in</label>
+    <div class="path">
+      <div style="font-size:12px;color:#94a3b8;margin-bottom:4px;">Project folder (where docker-compose.yml lives)</div>
+      <input id="dir" onchange="saveDir()" />
+    </div>
+    <p id="msg"></p>
+  </main>
+  <footer>
+    Controls the Docker trading stack. It never enables live trading — that is a
+    human-only change. Not financial advice; you can lose money.
+  </footer>
+
+<script type="module">
+  const { invoke } = window.__TAURI__.core;
+  const { listen } = window.__TAURI__.event;
+
+  const msg = (t) => document.getElementById("msg").textContent = t;
+
+  window.up = async () => { msg("starting…"); try { await invoke("stack_up"); msg("stack started"); } catch(e){ msg("error: "+e); } refresh(); };
+  window.down = async () => { msg("stopping…"); try { await invoke("stack_down"); msg("stack stopped"); } catch(e){ msg("error: "+e); } refresh(); };
+  window.dashboard = () => invoke("open_dashboard");
+  window.saveDir = async () => { await invoke("set_project_dir", { dir: document.getElementById("dir").value }); msg("project folder saved"); refresh(); };
+  window.toggleAutostart = async () => {
+    const on = document.getElementById("autostart").checked;
+    try { await invoke("set_autostart", { enabled: on }); msg(on ? "will start at login" : "autostart off"); }
+    catch(e){ msg("error: "+e); }
+  };
+
+  window.refresh = async () => {
+    try {
+      const svcs = await invoke("stack_status");
+      const el = document.getElementById("services");
+      if (!svcs.length) { el.innerHTML = '<div class="svc"><span>no containers</span><span class="warn">stopped</span></div>'; return; }
+      el.innerHTML = svcs.map(s => {
+        const up = /up|healthy/i.test(s.status);
+        const cls = /healthy|up/i.test(s.status) ? "ok" : "bad";
+        return `<div class="svc"><span>${s.name}</span><span class="${cls}">${s.status}</span></div>`;
+      }).join("");
+    } catch(e){ msg("status error: "+e); }
+  };
+
+  async function boot() {
+    document.getElementById("dir").value = await invoke("get_project_dir");
+    document.getElementById("autostart").checked = await invoke("autostart_enabled");
+    refresh();
+    setInterval(refresh, 15000);
+  }
+  listen("stack-changed", refresh);
+  boot();
+</script>
+</body>
+</html>

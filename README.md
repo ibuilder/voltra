@@ -5,7 +5,18 @@ pairs BTC/USD · ETH/USD · SOL/USD plus screener output.
 
 **Mode discipline: Backtest → Dry-run (30+ days) → Small live capital. Never skip a stage.**
 
-## Setup
+## Desktop app (run it on its own)
+
+The **SolSignal Controller** is a lightweight Tauri system-tray app that manages
+the whole Docker stack — start/stop, live status, open dashboard, and a checkbox
+to launch at login (no manual Startup-folder steps). It's a controller only; it
+never enables live trading. Build/release and GitHub setup:
+[docs/desktop-app.md](docs/desktop-app.md). Source in `desktop/`.
+
+**Important:** read [DISCLAIMER.md](DISCLAIMER.md) — experimental software,
+trading carries real risk of loss, not financial advice, default is paper only.
+
+## Setup (Docker directly)
 
 1. Install Docker Desktop (done) and make sure it's running.
 2. `cp .env.example .env` and fill in WebUI credentials (exchange keys not needed

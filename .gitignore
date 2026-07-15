@@ -23,3 +23,10 @@ __pycache__/
 
 # Backup archives (data is reproducible; do not bloat the repo)
 user_data/backups/
+
+# Tauri desktop app
+.tauri-signing.key
+*.tauri-signing.key
+desktop/node_modules/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
