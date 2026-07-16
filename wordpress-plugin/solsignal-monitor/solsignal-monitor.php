@@ -10,13 +10,15 @@
  * License:           MIT
  * Text Domain:       solsignal-monitor
  *
+ * @package SolSignal_Monitor
+ *
  * IMPORTANT: this plugin does NOT run the trading bot. The bot is Freqtrade (a
  * 24/7 Python service in Docker). This plugin is only a dashboard/monitor that
  * calls the bot's REST API. It will never set dry_run=false.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit; // no direct access
+	exit; // No direct access.
 }
 
 define( 'SOLSIGNAL_MON_VERSION', '0.1.0' );

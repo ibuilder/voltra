@@ -13,11 +13,30 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Plugin settings storage and settings-page rendering.
+ */
 class SS_Settings {
 
+	/**
+	 * Option name in wp_options.
+	 *
+	 * @var string
+	 */
 	const OPTION = 'solsignal_mon_settings';
+
+	/**
+	 * Singleton instance.
+	 *
+	 * @var SS_Settings|null
+	 */
 	private static $instance = null;
 
+	/**
+	 * Get the singleton instance.
+	 *
+	 * @return SS_Settings
+	 */
 	public static function instance() {
 		if ( null === self::$instance ) {
 			self::$instance = new self();
@@ -25,11 +44,16 @@ class SS_Settings {
 		return self::$instance;
 	}
 
+	/**
+	 * Hook settings registration.
+	 */
 	private function __construct() {
 		add_action( 'admin_init', array( $this, 'register' ) );
 	}
 
 	/**
+	 * Get the stored settings merged with defaults.
+	 *
 	 * @return array Settings with defaults.
 	 */
 	public static function get() {
@@ -71,12 +95,18 @@ class SS_Settings {
 			}
 			list( $name, $url ) = array_map( 'trim', explode( '|', $line, 2 ) );
 			if ( $name && $url ) {
-				$bots[] = array( 'name' => $name, 'url' => esc_url_raw( $url ) );
+				$bots[] = array(
+					'name' => $name,
+					'url'  => esc_url_raw( $url ),
+				);
 			}
 		}
 		return $bots;
 	}
 
+	/**
+	 * Register the setting with the Settings API.
+	 */
 	public function register() {
 		register_setting(
 			'solsignal_mon',
@@ -86,8 +116,10 @@ class SS_Settings {
 	}
 
 	/**
-	 * @param mixed $input
-	 * @return array
+	 * Sanitize submitted settings.
+	 *
+	 * @param mixed $input Raw submitted values.
+	 * @return array Sanitized settings.
 	 */
 	public function sanitize( $input ) {
 		$out = self::get();
@@ -114,7 +146,7 @@ class SS_Settings {
 	 * Render the settings form (called from the admin page).
 	 */
 	public static function render_form() {
-		$s          = self::get();
+		$s           = self::get();
 		$using_const = defined( 'SOLSIGNAL_API_PASSWORD' ) && SOLSIGNAL_API_PASSWORD;
 		?>
 		<form method="post" action="options.php">

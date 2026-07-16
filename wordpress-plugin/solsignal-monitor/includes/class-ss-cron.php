@@ -15,12 +15,37 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * WP-Cron poller and alerting for the SolSignal bots.
+ */
 class SS_Cron {
 
+	/**
+	 * Transient key for the cached snapshot.
+	 *
+	 * @var string
+	 */
 	const SNAPSHOT = 'solsignal_mon_snapshot';
+
+	/**
+	 * Option key tracking which bots already tripped.
+	 *
+	 * @var string
+	 */
 	const TRIP_FLAG = 'solsignal_mon_tripped';
+
+	/**
+	 * Singleton instance.
+	 *
+	 * @var SS_Cron|null
+	 */
 	private static $instance = null;
 
+	/**
+	 * Get the singleton instance.
+	 *
+	 * @return SS_Cron
+	 */
 	public static function instance() {
 		if ( null === self::$instance ) {
 			self::$instance = new self();
@@ -28,6 +53,9 @@ class SS_Cron {
 		return self::$instance;
 	}
 
+	/**
+	 * Hook the cron action.
+	 */
 	private function __construct() {
 		add_action( SOLSIGNAL_MON_CRON_HOOK, array( $this, 'poll' ) );
 	}
@@ -38,19 +66,22 @@ class SS_Cron {
 	public function poll() {
 		$s        = SS_Settings::get();
 		$pass     = SS_Settings::password();
-		$snapshot = array( 'time' => time(), 'bots' => array() );
+		$snapshot = array(
+			'time' => time(),
+			'bots' => array(),
+		);
 
 		foreach ( SS_Settings::bots() as $bot ) {
-			$client  = new SS_Api_Client( $bot['url'], $s['username'], $pass );
-			$summary = $client->summary();
-			$summary['name'] = $bot['name'];
+			$client             = new SS_Api_Client( $bot['url'], $s['username'], $pass );
+			$summary            = $client->summary();
+			$summary['name']    = $bot['name'];
 			$snapshot['bots'][] = $summary;
 
 			// Tripwire: live-mode bot.
 			if ( isset( $summary['dry_run'] ) && false === $summary['dry_run'] ) {
 				$this->trip( $bot['name'], $s['alert_email'] );
 			}
-			// Unreachable alert (debounced via transient below inside trip()).
+			// Unreachable alert, debounced by a transient.
 			if ( empty( $summary['reachable'] ) ) {
 				$this->maybe_alert_unreachable( $bot['name'], $summary['error'], $s['alert_email'] );
 			}
@@ -62,13 +93,13 @@ class SS_Cron {
 	/**
 	 * Fire the dry-run tripwire email once per incident.
 	 *
-	 * @param string $bot
-	 * @param string $email
+	 * @param string $bot   Bot name.
+	 * @param string $email Alert recipient.
 	 */
 	private function trip( $bot, $email ) {
 		$already = (array) get_option( self::TRIP_FLAG, array() );
 		if ( in_array( $bot, $already, true ) ) {
-			return; // already alerted for this bot
+			return; // Already alerted for this bot.
 		}
 		$already[] = $bot;
 		update_option( self::TRIP_FLAG, $already, false );
@@ -87,6 +118,10 @@ class SS_Cron {
 
 	/**
 	 * Alert once per hour for an unreachable bot.
+	 *
+	 * @param string $bot   Bot name.
+	 * @param string $error Error message.
+	 * @param string $email Alert recipient.
 	 */
 	private function maybe_alert_unreachable( $bot, $error, $email ) {
 		$key = 'ss_mon_unreach_' . md5( $bot );
@@ -104,7 +139,9 @@ class SS_Cron {
 	}
 
 	/**
-	 * @return array|false Last snapshot.
+	 * Get the last cached snapshot.
+	 *
+	 * @return array|false Snapshot array, or false if none.
 	 */
 	public static function snapshot() {
 		return get_transient( self::SNAPSHOT );

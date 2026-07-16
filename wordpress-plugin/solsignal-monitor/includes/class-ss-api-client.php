@@ -1,7 +1,9 @@
 <?php
 /**
- * Freqtrade REST API client (server-side only — credentials never reach the
- * browser). JWT token is cached in a transient.
+ * Freqtrade REST API client.
+ *
+ * Server-side only — credentials never reach the browser. The JWT token is
+ * cached in a transient and refreshed once on a 401.
  *
  * @package SolSignal_Monitor
  */
@@ -10,21 +12,45 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Thin authenticated client for one Freqtrade bot's REST API.
+ */
 class SS_Api_Client {
 
-	/** @var string */
+	/**
+	 * Bot base URL, e.g. http://127.0.0.1:8080.
+	 *
+	 * @var string
+	 */
 	private $base_url;
-	/** @var string */
+
+	/**
+	 * REST username.
+	 *
+	 * @var string
+	 */
 	private $user;
-	/** @var string */
+
+	/**
+	 * REST password.
+	 *
+	 * @var string
+	 */
 	private $pass;
-	/** @var string */
+
+	/**
+	 * Transient key for the cached token.
+	 *
+	 * @var string
+	 */
 	private $cache_key;
 
 	/**
-	 * @param string $base_url e.g. http://127.0.0.1:8080
-	 * @param string $user
-	 * @param string $pass
+	 * Constructor.
+	 *
+	 * @param string $base_url Bot base URL.
+	 * @param string $user     REST username.
+	 * @param string $pass     REST password.
 	 */
 	public function __construct( $base_url, $user, $pass ) {
 		$this->base_url  = untrailingslashit( $base_url );
@@ -37,7 +63,7 @@ class SS_Api_Client {
 	 * Get a bearer token, using the cached one if present.
 	 *
 	 * @param bool $force Force a fresh login.
-	 * @return string|WP_Error
+	 * @return string|WP_Error Token string, or error.
 	 */
 	private function token( $force = false ) {
 		if ( ! $force ) {
@@ -51,15 +77,16 @@ class SS_Api_Client {
 			array(
 				'timeout' => 10,
 				'headers' => array(
-					'Authorization' => 'Basic ' . base64_encode( $this->user . ':' . $this->pass ),
+					// HTTP Basic auth header; base64 is required by the scheme, not obfuscation.
+					'Authorization' => 'Basic ' . base64_encode( $this->user . ':' . $this->pass ), // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
 				),
 			)
 		);
 		if ( is_wp_error( $resp ) ) {
 			return $resp;
 		}
-		$code = wp_remote_retrieve_response_code( $resp );
-		if ( 200 !== (int) $code ) {
+		$code = (int) wp_remote_retrieve_response_code( $resp );
+		if ( 200 !== $code ) {
 			return new WP_Error( 'ss_login', sprintf( 'login failed (HTTP %d)', $code ) );
 		}
 		$body  = json_decode( wp_remote_retrieve_body( $resp ), true );
@@ -67,37 +94,36 @@ class SS_Api_Client {
 		if ( ! $token ) {
 			return new WP_Error( 'ss_login', 'no access_token in response' );
 		}
-		// Freqtrade access tokens are short-lived; cache under that.
 		set_transient( $this->cache_key, $token, 10 * MINUTE_IN_SECONDS );
 		return $token;
 	}
 
 	/**
-	 * GET a REST path, refreshing the token once on 401.
+	 * Perform an authenticated request, refreshing the token once on a 401.
 	 *
-	 * @param string $path e.g. /status
-	 * @return array|WP_Error Decoded JSON.
+	 * @param string $method HTTP method (GET or POST).
+	 * @param string $path   REST path, e.g. /status.
+	 * @return array|WP_Error Decoded JSON, or error.
 	 */
-	public function get( $path ) {
+	private function request( $method, $path ) {
 		foreach ( array( false, true ) as $force ) {
 			$token = $this->token( $force );
 			if ( is_wp_error( $token ) ) {
 				return $token;
 			}
-			$resp = wp_remote_get(
-				$this->base_url . '/api/v1' . $path,
-				array(
-					'timeout' => 12,
-					'headers' => array( 'Authorization' => 'Bearer ' . $token ),
-				)
+			$args = array(
+				'timeout' => 12,
+				'headers' => array( 'Authorization' => 'Bearer ' . $token ),
 			);
+			$url  = $this->base_url . '/api/v1' . $path;
+			$resp = ( 'POST' === $method ) ? wp_remote_post( $url, $args ) : wp_remote_get( $url, $args );
 			if ( is_wp_error( $resp ) ) {
 				return $resp;
 			}
 			$code = (int) wp_remote_retrieve_response_code( $resp );
 			if ( 401 === $code && ! $force ) {
 				delete_transient( $this->cache_key );
-				continue; // retry with a fresh token
+				continue;
 			}
 			if ( 200 !== $code ) {
 				return new WP_Error( 'ss_api', sprintf( '%s -> HTTP %d', $path, $code ) );
@@ -108,14 +134,37 @@ class SS_Api_Client {
 	}
 
 	/**
-	 * Convenience: fetch a compact status summary for one bot.
+	 * Authenticated GET.
 	 *
-	 * @return array {reachable, dry_run, state, strategy, balance, open, closed, pnl, error}
+	 * @param string $path REST path, e.g. /status.
+	 * @return array|WP_Error Decoded JSON, or error.
+	 */
+	public function get( $path ) {
+		return $this->request( 'GET', $path );
+	}
+
+	/**
+	 * Authenticated POST (Freqtrade RPC actions like /start, /stop are POST).
+	 *
+	 * @param string $path REST path, e.g. /start.
+	 * @return array|WP_Error Decoded JSON, or error.
+	 */
+	public function post( $path ) {
+		return $this->request( 'POST', $path );
+	}
+
+	/**
+	 * Fetch a compact status summary for one bot.
+	 *
+	 * @return array Summary with reachable, dry_run, state, strategy, balance, open, closed, pnl, error.
 	 */
 	public function summary() {
 		$cfg = $this->get( '/show_config' );
 		if ( is_wp_error( $cfg ) ) {
-			return array( 'reachable' => false, 'error' => $cfg->get_error_message() );
+			return array(
+				'reachable' => false,
+				'error'     => $cfg->get_error_message(),
+			);
 		}
 		$profit  = $this->get( '/profit' );
 		$balance = $this->get( '/balance' );

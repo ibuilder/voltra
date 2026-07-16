@@ -10,11 +10,30 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Registers the admin menu, dashboard page, and AJAX handlers.
+ */
 class SS_Dashboard {
 
+	/**
+	 * Capability required for all actions.
+	 *
+	 * @var string
+	 */
 	const CAP = 'manage_options';
+
+	/**
+	 * Singleton instance.
+	 *
+	 * @var SS_Dashboard|null
+	 */
 	private static $instance = null;
 
+	/**
+	 * Get the singleton instance.
+	 *
+	 * @return SS_Dashboard
+	 */
 	public static function instance() {
 		if ( null === self::$instance ) {
 			self::$instance = new self();
@@ -22,12 +41,18 @@ class SS_Dashboard {
 		return self::$instance;
 	}
 
+	/**
+	 * Hook the admin menu and AJAX endpoints.
+	 */
 	private function __construct() {
 		add_action( 'admin_menu', array( $this, 'menu' ) );
 		add_action( 'wp_ajax_ss_mon_status', array( $this, 'ajax_status' ) );
 		add_action( 'wp_ajax_ss_mon_action', array( $this, 'ajax_action' ) );
 	}
 
+	/**
+	 * Register the top-level admin menu page.
+	 */
 	public function menu() {
 		$hook = add_menu_page(
 			__( 'SolSignal', 'solsignal-monitor' ),
@@ -40,6 +65,9 @@ class SS_Dashboard {
 		add_action( 'load-' . $hook, array( $this, 'noop' ) );
 	}
 
+	/**
+	 * Placeholder load hook (kept for future per-screen setup).
+	 */
 	public function noop() {}
 
 	/**
@@ -54,10 +82,10 @@ class SS_Dashboard {
 		$pass = SS_Settings::password();
 		$out  = array();
 		foreach ( SS_Settings::bots() as $bot ) {
-			$client = new SS_Api_Client( $bot['url'], $s['username'], $pass );
-			$sum    = $client->summary();
+			$client      = new SS_Api_Client( $bot['url'], $s['username'], $pass );
+			$sum         = $client->summary();
 			$sum['name'] = $bot['name'];
-			$out[]  = $sum;
+			$out[]       = $sum;
 		}
 		wp_send_json_success( $out );
 	}
@@ -81,15 +109,18 @@ class SS_Dashboard {
 		if ( ! in_array( $action, $allowed, true ) || ! $bot_url ) {
 			wp_send_json_error( 'bad request', 400 );
 		}
-		// These are POSTs in the real API; this monitor keeps a minimal safe set.
+		// Freqtrade RPC actions are POST endpoints.
 		$client = new SS_Api_Client( $bot_url, $s['username'], SS_Settings::password() );
-		$res    = $client->get( '/' . $action ); // start/stop/reload_config are GET-able RPCs in FreqUI's client
+		$res    = $client->post( '/' . $action );
 		if ( is_wp_error( $res ) ) {
 			wp_send_json_error( $res->get_error_message() );
 		}
 		wp_send_json_success( $res );
 	}
 
+	/**
+	 * Render the dashboard admin page.
+	 */
 	public function render() {
 		if ( ! current_user_can( self::CAP ) ) {
 			return;
@@ -118,7 +149,10 @@ class SS_Dashboard {
 						<th><?php esc_html_e( 'Balance', 'solsignal-monitor' ); ?></th>
 						<th><?php esc_html_e( 'Open', 'solsignal-monitor' ); ?></th>
 						<th><?php esc_html_e( 'Closed PnL', 'solsignal-monitor' ); ?></th>
-						<?php if ( $controls ) : ?><th><?php esc_html_e( 'Controls', 'solsignal-monitor' ); ?></th><?php endif; ?>
+						<?php
+						if ( $controls ) :
+							?>
+							<th><?php esc_html_e( 'Controls', 'solsignal-monitor' ); ?></th><?php endif; ?>
 					</tr></thead>
 					<tbody><tr><td colspan="8"><?php esc_html_e( 'Loading…', 'solsignal-monitor' ); ?></td></tr></tbody>
 				</table>

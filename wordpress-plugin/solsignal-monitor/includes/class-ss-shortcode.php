@@ -12,10 +12,23 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Read-only [solsignal_status] shortcode rendering the cached cron snapshot.
+ */
 class SS_Shortcode {
 
+	/**
+	 * Singleton instance.
+	 *
+	 * @var SS_Shortcode|null
+	 */
 	private static $instance = null;
 
+	/**
+	 * Get the singleton instance.
+	 *
+	 * @return SS_Shortcode
+	 */
 	public static function instance() {
 		if ( null === self::$instance ) {
 			self::$instance = new self();
@@ -23,15 +36,21 @@ class SS_Shortcode {
 		return self::$instance;
 	}
 
+	/**
+	 * Register the shortcode.
+	 */
 	private function __construct() {
 		add_shortcode( 'solsignal_status', array( $this, 'render' ) );
 	}
 
 	/**
-	 * @param array $atts
-	 * @return string
+	 * Render the status table from the cached snapshot.
+	 *
+	 * @param array $atts Shortcode attributes (unused).
+	 * @return string HTML.
 	 */
 	public function render( $atts ) {
+		unset( $atts );
 		$snap = SS_Cron::snapshot();
 		if ( ! $snap || empty( $snap['bots'] ) ) {
 			return '<p>' . esc_html__( 'SolSignal: no data yet (waiting for the first cron poll).', 'solsignal-monitor' ) . '</p>';
@@ -42,7 +61,7 @@ class SS_Shortcode {
 				$rows .= '<tr><td>' . esc_html( $b['name'] ) . '</td><td colspan="3">' . esc_html__( 'unreachable', 'solsignal-monitor' ) . '</td></tr>';
 				continue;
 			}
-			$mode = ( isset( $b['dry_run'] ) && false === $b['dry_run'] )
+			$mode  = ( isset( $b['dry_run'] ) && false === $b['dry_run'] )
 				? '<strong style="color:#0073aa">LIVE</strong>'
 				: '<strong style="color:#00844a">DRY-RUN</strong>';
 			$rows .= sprintf(
