@@ -47,6 +47,8 @@ treated as a security incident.
 - **TLS termination** at Caddy (auto Let's Encrypt with a real domain, TLS 1.3,
   HSTS, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`,
   `-Server`). Local dev uses Caddy's internal CA (self-signed).
+- **Rate limiting**: 120 req/min/IP at the ingress (custom Caddy image with the
+  rate-limit module, `ops/Caddy.Dockerfile`). First run: `docker compose build caddy`.
 - **Secrets** only in `.env` (gitignored): exchange keys, API creds, JWT/WS
   tokens, relay secret. `config*.json` hold no secrets (keys injected from env).
   Back `.env` up in a password manager, never in git or the backup archives.
@@ -94,6 +96,15 @@ treated as a security incident.
 `.github/workflows/ci.yml` runs the pytest suite (strategy signal logic +
 relay logic), validates every JSON config/param, and lints the compose file on
 push/PR.
+
+## Operations
+
+- **Trade/audit ledger**: `python scripts/export_ledger.py` → CSV of every
+  trade (dates, prices, fees, realized P&L, exit reason) for accounting/tax
+  records. Reads the SQLite DBs directly.
+- **Incident runbook**: docs/incident-runbook.md (tripwire, crash mid-position,
+  failed stop, exchange outage, partial fills, emergency flatten).
+- **Key rotation**: docs/key-rotation.md (schedule + per-secret procedures).
 
 ## What is intentionally NOT here (documented, not built)
 

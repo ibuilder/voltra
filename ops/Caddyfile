@@ -15,6 +15,7 @@
 {
 	admin off
 	email {$CADDY_ACME_EMAIL:admin@example.com}
+	order rate_limit before basic_auth
 }
 
 (secure_headers) {
@@ -32,6 +33,16 @@
 	# when the site name is "localhost" (which otherwise binds loopback-only).
 	bind 0.0.0.0
 	import secure_headers
+
+	# Per-IP rate limit (needs the caddy-ratelimit module — see Caddy.Dockerfile).
+	# 120 requests/min/IP protects the public endpoint from abuse/DDoS.
+	rate_limit {
+		zone perip {
+			key {remote_host}
+			events 120
+			window 1m
+		}
+	}
 
 	# FreqUI (bot #1) — full control panel, has its own JWT login
 	handle_path /frequi/* {

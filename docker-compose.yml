@@ -179,7 +179,12 @@ services:
   # Hardened TLS ingress. Local: internal CA (self-signed). Production: set
   # SOLSIGNAL_DOMAIN + expose 80/443 publicly for automatic Let's Encrypt.
   caddy:
-    image: caddy:2-alpine
+    # Custom image adds the rate-limit module (ops/Caddy.Dockerfile).
+    # First run: docker compose build caddy
+    image: solsignal-caddy:local
+    build:
+      context: .
+      dockerfile: ops/Caddy.Dockerfile
     restart: unless-stopped
     container_name: solsignal-caddy
     <<: *hardening

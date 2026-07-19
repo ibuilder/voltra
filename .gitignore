@@ -30,3 +30,6 @@ user_data/backups/
 desktop/node_modules/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
+
+# Trade ledger exports (contain trade data)
+user_data/exports/
