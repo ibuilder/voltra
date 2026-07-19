@@ -77,6 +77,9 @@ class SS_Cron {
 			$summary['name']    = $bot['name'];
 			$snapshot['bots'][] = $summary;
 
+			// Persist this reading to the time-series table (data collection).
+			SS_Storage::record( $bot['name'], $summary );
+
 			// Tripwire: live-mode bot.
 			if ( isset( $summary['dry_run'] ) && false === $summary['dry_run'] ) {
 				$this->trip( $bot['name'], $s['alert_email'] );
@@ -88,6 +91,7 @@ class SS_Cron {
 		}
 
 		set_transient( self::SNAPSHOT, $snapshot, HOUR_IN_SECONDS );
+		SS_Storage::prune(); // bound table growth (default 1 year retention)
 	}
 
 	/**

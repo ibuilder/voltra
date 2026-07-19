@@ -4,7 +4,7 @@ Tags: freqtrade, trading, monitoring, dashboard
 Requires at least: 6.0
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 0.1.0
+Stable tag: 0.2.0
 License: MIT
 
 Monitoring + control panel for SolSignal Freqtrade bots, via the Freqtrade REST API and WP-Cron.
@@ -26,6 +26,8 @@ loop; this is a monitor/control panel only, and it never enables live trading.
 * Server-side REST calls (credentials never reach the browser).
 * Admin dashboard with 30s live refresh (via admin-ajax).
 * WP-Cron poller + dry-run tripwire email + unreachable alerts.
+* **Persistent data collection**: each poll is stored in a custom table; a
+  'Collected data' admin tab shows history and exports it as CSV.
 * Optional read-only `[solsignal_status]` shortcode (renders the cron snapshot).
 * Optional, off-by-default start/stop controls (capability + nonce gated).
 
@@ -58,6 +60,9 @@ disable the page-load trigger:
 4. (Recommended) define SOLSIGNAL_API_PASSWORD in wp-config.php.
 
 == Changelog ==
+
+= 0.2.0 =
+* Persistent time-series data collection (custom table), history tab, CSV export.
 
 = 0.1.0 =
 * Initial release: settings, REST client, dashboard, WP-Cron tripwire, shortcode.

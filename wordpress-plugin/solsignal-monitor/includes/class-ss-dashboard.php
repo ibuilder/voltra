@@ -48,6 +48,33 @@ class SS_Dashboard {
 		add_action( 'admin_menu', array( $this, 'menu' ) );
 		add_action( 'wp_ajax_ss_mon_status', array( $this, 'ajax_status' ) );
 		add_action( 'wp_ajax_ss_mon_action', array( $this, 'ajax_action' ) );
+		add_action( 'admin_post_ss_mon_export', array( $this, 'export_csv' ) );
+	}
+
+	/**
+	 * Stream the collected time-series as a CSV download.
+	 */
+	public function export_csv() {
+		if ( ! current_user_can( self::CAP ) ) {
+			wp_die( 'forbidden', '', array( 'response' => 403 ) );
+		}
+		check_admin_referer( 'ss_mon_export' );
+		$rows = SS_Storage::recent( 100000 );
+		nocache_headers();
+		header( 'Content-Type: text/csv; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename=solsignal-data.csv' );
+		$out  = fopen( 'php://output', 'w' );
+		$cols = array( 'captured_at', 'bot', 'reachable', 'dry_run', 'state', 'strategy', 'balance', 'open_trades', 'closed_trades', 'pnl' );
+		fputcsv( $out, $cols );
+		foreach ( (array) $rows as $r ) {
+			$line = array();
+			foreach ( $cols as $c ) {
+				$line[] = isset( $r[ $c ] ) ? $r[ $c ] : '';
+			}
+			fputcsv( $out, $line );
+		}
+		fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+		exit;
 	}
 
 	/**
@@ -135,6 +162,7 @@ class SS_Dashboard {
 
 			<h2 class="nav-tab-wrapper">
 				<a href="#dash" class="nav-tab nav-tab-active"><?php esc_html_e( 'Dashboard', 'solsignal-monitor' ); ?></a>
+				<a href="#history" class="nav-tab"><?php esc_html_e( 'Collected data', 'solsignal-monitor' ); ?></a>
 				<a href="#settings" class="nav-tab"><?php esc_html_e( 'Settings', 'solsignal-monitor' ); ?></a>
 			</h2>
 
@@ -158,6 +186,10 @@ class SS_Dashboard {
 				</table>
 			</div>
 
+			<div id="ss-history" style="display:none;">
+				<?php $this->render_history(); ?>
+			</div>
+
 			<div id="ss-settings" style="display:none;">
 				<?php SS_Settings::render_form(); ?>
 			</div>
@@ -174,6 +206,57 @@ class SS_Dashboard {
 	}
 
 	/**
+	 * Render the collected-data (history) view with a CSV export button.
+	 */
+	private function render_history() {
+		$total  = SS_Storage::count();
+		$rows   = SS_Storage::recent( 200 );
+		$export = wp_nonce_url( admin_url( 'admin-post.php?action=ss_mon_export' ), 'ss_mon_export' );
+		?>
+		<p>
+			<?php
+			printf(
+				/* translators: %s: number of collected rows. */
+				esc_html__( '%s data points collected. Newest 200 shown.', 'solsignal-monitor' ),
+				esc_html( number_format_i18n( $total ) )
+			);
+			?>
+			&nbsp;<a class="button button-primary" href="<?php echo esc_url( $export ); ?>"><?php esc_html_e( 'Download CSV', 'solsignal-monitor' ); ?></a>
+		</p>
+		<table class="widefat striped">
+			<thead><tr>
+				<th><?php esc_html_e( 'Time (UTC)', 'solsignal-monitor' ); ?></th>
+				<th><?php esc_html_e( 'Bot', 'solsignal-monitor' ); ?></th>
+				<th><?php esc_html_e( 'dry_run', 'solsignal-monitor' ); ?></th>
+				<th><?php esc_html_e( 'State', 'solsignal-monitor' ); ?></th>
+				<th><?php esc_html_e( 'Balance', 'solsignal-monitor' ); ?></th>
+				<th><?php esc_html_e( 'Open', 'solsignal-monitor' ); ?></th>
+				<th><?php esc_html_e( 'Closed', 'solsignal-monitor' ); ?></th>
+				<th><?php esc_html_e( 'PnL', 'solsignal-monitor' ); ?></th>
+			</tr></thead>
+			<tbody>
+			<?php if ( empty( $rows ) ) : ?>
+				<tr><td colspan="8"><?php esc_html_e( 'No data yet — the first cron poll will populate this.', 'solsignal-monitor' ); ?></td></tr>
+			<?php else : ?>
+				<?php foreach ( $rows as $r ) : ?>
+					<tr>
+						<td><?php echo esc_html( $r['captured_at'] ); ?></td>
+						<td><?php echo esc_html( $r['bot'] ); ?></td>
+						<td><?php echo null === $r['dry_run'] ? '—' : ( $r['dry_run'] ? 'yes' : 'LIVE' ); ?></td>
+						<td><?php echo esc_html( $r['state'] ); ?></td>
+						<td><?php echo esc_html( $r['balance'] ); ?></td>
+						<td><?php echo esc_html( $r['open_trades'] ); ?></td>
+						<td><?php echo esc_html( $r['closed_trades'] ); ?></td>
+						<td><?php echo esc_html( $r['pnl'] ); ?></td>
+					</tr>
+				<?php endforeach; ?>
+			<?php endif; ?>
+			</tbody>
+		</table>
+		<?php
+	}
+
+	/**
 	 * Minimal inline JS/CSS (keeps the plugin single-purpose, no build step).
 	 */
 	private function inline_assets() {
@@ -187,6 +270,7 @@ class SS_Dashboard {
 			var C = window.SS_MON;
 			function tab(sel){document.querySelectorAll('.nav-tab').forEach(function(a){a.classList.remove('nav-tab-active')});
 				document.getElementById('ss-dash').style.display = sel==='#dash'?'':'none';
+				document.getElementById('ss-history').style.display = sel==='#history'?'':'none';
 				document.getElementById('ss-settings').style.display = sel==='#settings'?'':'none';}
 			document.querySelectorAll('.nav-tab').forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();
 				a.classList.add('nav-tab-active');tab(a.getAttribute('href'));});});
