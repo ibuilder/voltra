@@ -11,6 +11,17 @@
 // is sent automatically. Requires TradingView Pro+ (webhooks are paid-only).
 //
 // SECURITY: replace the secret via the alert message, not in shared code.
+//
+// REPAINT/LOOKAHEAD AUDIT (2026-07-16, per the AI-trading-bot-playbooks
+// research — request.security repaint can fake-inflate a 47% strategy to 61%):
+//   - No request.security() is used, so there is no multi-timeframe repaint or
+//     lookahead vector here.
+//   - Swing levels use high[1]/low[1] (the PRIOR bar), never the forming bar.
+//   - Alerts fire with alert.freq_once_per_bar_close, so a signal is only sent
+//     on a CONFIRMED close — the intrabar plotshape may flicker, but the traded
+//     alert does not repaint.
+// If you add higher-timeframe context later, pass lookahead=barmerge.lookahead_off
+// to request.security and reference the [1] value.
 
 indicator("SolSignal TrendBreak v6", overlay = true)
 

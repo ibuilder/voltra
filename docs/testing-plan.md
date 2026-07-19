@@ -33,7 +33,10 @@ Judge at the 30-day mark, not before; early weeks are tiny samples.
    backtest lied (slippage, fills) → do NOT go live.
 3. **Do the plan's hard gates pass?**
    - OOS profit factor > 1.3 — **currently FAILING (4-pair 2025 PF 1.07)**
-   - backtest max drawdown < 15% — passing (13.7%)
+   - backtest max drawdown < 15% — **FAILING on Monte Carlo (median 16%)**
+   - **Monte Carlo edge significance P(mean>0) ≥ 95% — FAILING (81%)**, see
+     [montecarlo-report](montecarlo-report-2026-07-16.md) and
+     [verification checklist](strategy-verification-checklist.md)
    - 30-day dry-run within 20% — TBD
 4. **If gates fail** (likely on PF): the honest options, in order —
    a. Keep dry-running; it costs nothing. Collect more evidence.
