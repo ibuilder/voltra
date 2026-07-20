@@ -1,4 +1,4 @@
-# SolSignal — Freqtrade crypto bot
+# Voltra — Freqtrade crypto bot
 
 ## Rules for Claude Code
 - Python 3.11, Freqtrade framework, Docker deployment. Do not hand-roll exchange

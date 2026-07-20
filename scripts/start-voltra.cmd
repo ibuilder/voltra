@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM SolSignal autostart launcher (runs at Windows login)
+REM Voltra autostart launcher (runs at Windows login)
 REM Starts Docker Desktop if needed, waits for the daemon, then
 REM brings up the compose stack. Idempotent + safe to run twice.
 REM Installed to the Startup folder by scripts/install-autostart.ps1.
@@ -8,7 +8,7 @@ REM ============================================================
 setlocal
 set "DOCKER=C:\Program Files\Docker\Docker\Docker Desktop.exe"
 set "DOCKERCLI=C:\Program Files\Docker\Docker\resources\bin\docker.exe"
-set "PROJ=C:\Server\solsignal"
+set "PROJ=C:\Server\voltra"
 set "LOG=%PROJ%\user_data\logs\autostart.log"
 
 echo [%date% %time%] autostart begin >> "%LOG%"

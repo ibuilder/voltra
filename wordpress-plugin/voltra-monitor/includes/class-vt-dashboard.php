@@ -3,7 +3,7 @@
  * Admin menu + dashboard page + AJAX endpoints (live refresh and, if enabled,
  * guarded control actions).
  *
- * @package SolSignal_Monitor
+ * @package Voltra_Monitor
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Registers the admin menu, dashboard page, and AJAX handlers.
  */
-class SS_Dashboard {
+class VT_Dashboard {
 
 	/**
 	 * Capability required for all actions.
@@ -25,14 +25,14 @@ class SS_Dashboard {
 	/**
 	 * Singleton instance.
 	 *
-	 * @var SS_Dashboard|null
+	 * @var VT_Dashboard|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Get the singleton instance.
 	 *
-	 * @return SS_Dashboard
+	 * @return VT_Dashboard
 	 */
 	public static function instance() {
 		if ( null === self::$instance ) {
@@ -46,9 +46,9 @@ class SS_Dashboard {
 	 */
 	private function __construct() {
 		add_action( 'admin_menu', array( $this, 'menu' ) );
-		add_action( 'wp_ajax_ss_mon_status', array( $this, 'ajax_status' ) );
-		add_action( 'wp_ajax_ss_mon_action', array( $this, 'ajax_action' ) );
-		add_action( 'admin_post_ss_mon_export', array( $this, 'export_csv' ) );
+		add_action( 'wp_ajax_voltra_mon_status', array( $this, 'ajax_status' ) );
+		add_action( 'wp_ajax_voltra_mon_action', array( $this, 'ajax_action' ) );
+		add_action( 'admin_post_voltra_mon_export', array( $this, 'export_csv' ) );
 	}
 
 	/**
@@ -58,11 +58,11 @@ class SS_Dashboard {
 		if ( ! current_user_can( self::CAP ) ) {
 			wp_die( 'forbidden', '', array( 'response' => 403 ) );
 		}
-		check_admin_referer( 'ss_mon_export' );
-		$rows = SS_Storage::recent( 100000 );
+		check_admin_referer( 'voltra_mon_export' );
+		$rows = VT_Storage::recent( 100000 );
 		nocache_headers();
 		header( 'Content-Type: text/csv; charset=utf-8' );
-		header( 'Content-Disposition: attachment; filename=solsignal-data.csv' );
+		header( 'Content-Disposition: attachment; filename=voltra-data.csv' );
 		$out  = fopen( 'php://output', 'w' );
 		$cols = array( 'captured_at', 'bot', 'reachable', 'dry_run', 'state', 'strategy', 'balance', 'open_trades', 'closed_trades', 'pnl' );
 		fputcsv( $out, $cols );
@@ -82,10 +82,10 @@ class SS_Dashboard {
 	 */
 	public function menu() {
 		$hook = add_menu_page(
-			__( 'SolSignal', 'solsignal-monitor' ),
-			__( 'SolSignal', 'solsignal-monitor' ),
+			__( 'Voltra', 'voltra-monitor' ),
+			__( 'Voltra', 'voltra-monitor' ),
 			self::CAP,
-			'solsignal-monitor',
+			'voltra-monitor',
 			array( $this, 'render' ),
 			'dashicons-chart-line'
 		);
@@ -101,15 +101,15 @@ class SS_Dashboard {
 	 * Live status via AJAX (server calls the bot APIs; creds never hit JS).
 	 */
 	public function ajax_status() {
-		check_ajax_referer( 'ss_mon' );
+		check_ajax_referer( 'voltra_mon' );
 		if ( ! current_user_can( self::CAP ) ) {
 			wp_send_json_error( 'forbidden', 403 );
 		}
-		$s    = SS_Settings::get();
-		$pass = SS_Settings::password();
+		$s    = VT_Settings::get();
+		$pass = VT_Settings::password();
 		$out  = array();
-		foreach ( SS_Settings::bots() as $bot ) {
-			$client      = new SS_Api_Client( $bot['url'], $s['username'], $pass );
+		foreach ( VT_Settings::bots() as $bot ) {
+			$client      = new VT_Api_Client( $bot['url'], $s['username'], $pass );
 			$sum         = $client->summary();
 			$sum['name'] = $bot['name'];
 			$out[]       = $sum;
@@ -122,11 +122,11 @@ class SS_Dashboard {
 	 * dry_run — only start/stop the trade loop or force-exit an open trade.
 	 */
 	public function ajax_action() {
-		check_ajax_referer( 'ss_mon' );
+		check_ajax_referer( 'voltra_mon' );
 		if ( ! current_user_can( self::CAP ) ) {
 			wp_send_json_error( 'forbidden', 403 );
 		}
-		$s = SS_Settings::get();
+		$s = VT_Settings::get();
 		if ( empty( $s['enable_controls'] ) ) {
 			wp_send_json_error( 'controls disabled', 403 );
 		}
@@ -137,7 +137,7 @@ class SS_Dashboard {
 			wp_send_json_error( 'bad request', 400 );
 		}
 		// Freqtrade RPC actions are POST endpoints.
-		$client = new SS_Api_Client( $bot_url, $s['username'], SS_Settings::password() );
+		$client = new VT_Api_Client( $bot_url, $s['username'], VT_Settings::password() );
 		$res    = $client->post( '/' . $action );
 		if ( is_wp_error( $res ) ) {
 			wp_send_json_error( $res->get_error_message() );
@@ -152,37 +152,37 @@ class SS_Dashboard {
 		if ( ! current_user_can( self::CAP ) ) {
 			return;
 		}
-		$controls = ! empty( SS_Settings::get()['enable_controls'] );
+		$controls = ! empty( VT_Settings::get()['enable_controls'] );
 		?>
 		<div class="wrap">
-			<h1>SolSignal Monitor</h1>
+			<h1>Voltra Monitor</h1>
 			<p class="description">
-				<?php esc_html_e( 'Read-only monitor for your Freqtrade bots. This plugin never enables live trading.', 'solsignal-monitor' ); ?>
+				<?php esc_html_e( 'Read-only monitor for your Freqtrade bots. This plugin never enables live trading.', 'voltra-monitor' ); ?>
 			</p>
 
 			<h2 class="nav-tab-wrapper">
-				<a href="#dash" class="nav-tab nav-tab-active"><?php esc_html_e( 'Dashboard', 'solsignal-monitor' ); ?></a>
-				<a href="#history" class="nav-tab"><?php esc_html_e( 'Collected data', 'solsignal-monitor' ); ?></a>
-				<a href="#settings" class="nav-tab"><?php esc_html_e( 'Settings', 'solsignal-monitor' ); ?></a>
+				<a href="#dash" class="nav-tab nav-tab-active"><?php esc_html_e( 'Dashboard', 'voltra-monitor' ); ?></a>
+				<a href="#history" class="nav-tab"><?php esc_html_e( 'Collected data', 'voltra-monitor' ); ?></a>
+				<a href="#settings" class="nav-tab"><?php esc_html_e( 'Settings', 'voltra-monitor' ); ?></a>
 			</h2>
 
 			<div id="ss-dash">
-				<p><button class="button" id="ss-refresh"><?php esc_html_e( 'Refresh', 'solsignal-monitor' ); ?></button> <span id="ss-updated"></span></p>
+				<p><button class="button" id="ss-refresh"><?php esc_html_e( 'Refresh', 'voltra-monitor' ); ?></button> <span id="ss-updated"></span></p>
 				<table class="widefat striped" id="ss-table">
 					<thead><tr>
-						<th><?php esc_html_e( 'Bot', 'solsignal-monitor' ); ?></th>
-						<th><?php esc_html_e( 'Mode', 'solsignal-monitor' ); ?></th>
-						<th><?php esc_html_e( 'State', 'solsignal-monitor' ); ?></th>
-						<th><?php esc_html_e( 'Strategy', 'solsignal-monitor' ); ?></th>
-						<th><?php esc_html_e( 'Balance', 'solsignal-monitor' ); ?></th>
-						<th><?php esc_html_e( 'Open', 'solsignal-monitor' ); ?></th>
-						<th><?php esc_html_e( 'Closed PnL', 'solsignal-monitor' ); ?></th>
+						<th><?php esc_html_e( 'Bot', 'voltra-monitor' ); ?></th>
+						<th><?php esc_html_e( 'Mode', 'voltra-monitor' ); ?></th>
+						<th><?php esc_html_e( 'State', 'voltra-monitor' ); ?></th>
+						<th><?php esc_html_e( 'Strategy', 'voltra-monitor' ); ?></th>
+						<th><?php esc_html_e( 'Balance', 'voltra-monitor' ); ?></th>
+						<th><?php esc_html_e( 'Open', 'voltra-monitor' ); ?></th>
+						<th><?php esc_html_e( 'Closed PnL', 'voltra-monitor' ); ?></th>
 						<?php
 						if ( $controls ) :
 							?>
-							<th><?php esc_html_e( 'Controls', 'solsignal-monitor' ); ?></th><?php endif; ?>
+							<th><?php esc_html_e( 'Controls', 'voltra-monitor' ); ?></th><?php endif; ?>
 					</tr></thead>
-					<tbody><tr><td colspan="8"><?php esc_html_e( 'Loading…', 'solsignal-monitor' ); ?></td></tr></tbody>
+					<tbody><tr><td colspan="8"><?php esc_html_e( 'Loading…', 'voltra-monitor' ); ?></td></tr></tbody>
 				</table>
 			</div>
 
@@ -191,13 +191,13 @@ class SS_Dashboard {
 			</div>
 
 			<div id="ss-settings" style="display:none;">
-				<?php SS_Settings::render_form(); ?>
+				<?php VT_Settings::render_form(); ?>
 			</div>
 		</div>
 		<script>
 			window.SS_MON = {
 				ajax: <?php echo wp_json_encode( admin_url( 'admin-ajax.php' ) ); ?>,
-				nonce: <?php echo wp_json_encode( wp_create_nonce( 'ss_mon' ) ); ?>,
+				nonce: <?php echo wp_json_encode( wp_create_nonce( 'voltra_mon' ) ); ?>,
 				controls: <?php echo $controls ? 'true' : 'false'; ?>
 			};
 		</script>
@@ -209,34 +209,34 @@ class SS_Dashboard {
 	 * Render the collected-data (history) view with a CSV export button.
 	 */
 	private function render_history() {
-		$total  = SS_Storage::count();
-		$rows   = SS_Storage::recent( 200 );
-		$export = wp_nonce_url( admin_url( 'admin-post.php?action=ss_mon_export' ), 'ss_mon_export' );
+		$total  = VT_Storage::count();
+		$rows   = VT_Storage::recent( 200 );
+		$export = wp_nonce_url( admin_url( 'admin-post.php?action=voltra_mon_export' ), 'voltra_mon_export' );
 		?>
 		<p>
 			<?php
 			printf(
 				/* translators: %s: number of collected rows. */
-				esc_html__( '%s data points collected. Newest 200 shown.', 'solsignal-monitor' ),
+				esc_html__( '%s data points collected. Newest 200 shown.', 'voltra-monitor' ),
 				esc_html( number_format_i18n( $total ) )
 			);
 			?>
-			&nbsp;<a class="button button-primary" href="<?php echo esc_url( $export ); ?>"><?php esc_html_e( 'Download CSV', 'solsignal-monitor' ); ?></a>
+			&nbsp;<a class="button button-primary" href="<?php echo esc_url( $export ); ?>"><?php esc_html_e( 'Download CSV', 'voltra-monitor' ); ?></a>
 		</p>
 		<table class="widefat striped">
 			<thead><tr>
-				<th><?php esc_html_e( 'Time (UTC)', 'solsignal-monitor' ); ?></th>
-				<th><?php esc_html_e( 'Bot', 'solsignal-monitor' ); ?></th>
-				<th><?php esc_html_e( 'dry_run', 'solsignal-monitor' ); ?></th>
-				<th><?php esc_html_e( 'State', 'solsignal-monitor' ); ?></th>
-				<th><?php esc_html_e( 'Balance', 'solsignal-monitor' ); ?></th>
-				<th><?php esc_html_e( 'Open', 'solsignal-monitor' ); ?></th>
-				<th><?php esc_html_e( 'Closed', 'solsignal-monitor' ); ?></th>
-				<th><?php esc_html_e( 'PnL', 'solsignal-monitor' ); ?></th>
+				<th><?php esc_html_e( 'Time (UTC)', 'voltra-monitor' ); ?></th>
+				<th><?php esc_html_e( 'Bot', 'voltra-monitor' ); ?></th>
+				<th><?php esc_html_e( 'dry_run', 'voltra-monitor' ); ?></th>
+				<th><?php esc_html_e( 'State', 'voltra-monitor' ); ?></th>
+				<th><?php esc_html_e( 'Balance', 'voltra-monitor' ); ?></th>
+				<th><?php esc_html_e( 'Open', 'voltra-monitor' ); ?></th>
+				<th><?php esc_html_e( 'Closed', 'voltra-monitor' ); ?></th>
+				<th><?php esc_html_e( 'PnL', 'voltra-monitor' ); ?></th>
 			</tr></thead>
 			<tbody>
 			<?php if ( empty( $rows ) ) : ?>
-				<tr><td colspan="8"><?php esc_html_e( 'No data yet — the first cron poll will populate this.', 'solsignal-monitor' ); ?></td></tr>
+				<tr><td colspan="8"><?php esc_html_e( 'No data yet — the first cron poll will populate this.', 'voltra-monitor' ); ?></td></tr>
 			<?php else : ?>
 				<?php foreach ( $rows as $r ) : ?>
 					<tr>
@@ -283,14 +283,14 @@ class SS_Dashboard {
 				return '<tr><td>'+b.name+'</td><td>'+mode+'</td><td>'+(b.state||'')+'</td><td>'+(b.strategy||'')+'</td><td>'+money(b.balance)+'</td><td>'+b.open+'</td><td class="'+pnlCls+'">'+money(b.pnl)+'</td>'+ctl+'</tr>';
 			}
 			function refresh(){
-				var body = new URLSearchParams({action:'ss_mon_status',_ajax_nonce:C.nonce});
+				var body = new URLSearchParams({action:'voltra_mon_status',_ajax_nonce:C.nonce});
 				fetch(C.ajax,{method:'POST',body:body,credentials:'same-origin'}).then(function(r){return r.json();}).then(function(j){
 					var tb = document.querySelector('#ss-table tbody');
 					if(!j.success){tb.innerHTML='<tr><td colspan="8" class="bad">error</td></tr>';return;}
 					tb.innerHTML = j.data.map(row).join('');
 					document.getElementById('ss-updated').textContent = 'updated '+new Date().toLocaleTimeString();
 					if(C.controls){document.querySelectorAll('.ss-act').forEach(function(btn){btn.addEventListener('click',function(){
-						var body=new URLSearchParams({action:'ss_mon_action',_ajax_nonce:C.nonce,bot:btn.dataset.bot,do:btn.dataset.do});
+						var body=new URLSearchParams({action:'voltra_mon_action',_ajax_nonce:C.nonce,bot:btn.dataset.bot,do:btn.dataset.do});
 						fetch(C.ajax,{method:'POST',body:body,credentials:'same-origin'}).then(function(r){return r.json();}).then(refresh);});});}
 				});
 			}

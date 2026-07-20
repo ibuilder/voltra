@@ -1,4 +1,4 @@
-# SolSignal enterprise production readiness
+# Voltra enterprise production readiness
 
 Status: **platform hardened; live trading NOT authorized.** This document
 covers the production *infrastructure*. Whether to trade real money is a
@@ -61,7 +61,7 @@ treated as a security incident.
 
 1. Remove the `127.0.0.1:80xx` port lines from the bot/relay/dashboard services
    so **only Caddy** is reachable; the rest talk over the private compose net.
-2. Publish Caddy on `80:80` and `443:443`; set `SOLSIGNAL_DOMAIN` +
+2. Publish Caddy on `80:80` and `443:443`; set `VOLTRA_DOMAIN` +
    `CADDY_ACME_EMAIL` → automatic real TLS cert.
 3. Host firewall: allow only 22/80/443; enable fail2ban on SSH.
 4. Exchange account: 2FA on, API key trade-only + IP-whitelisted + no withdraw.
@@ -86,7 +86,7 @@ treated as a security incident.
   1. `git clone` the repo on the target host.
   2. Restore `.env` from your password manager.
   3. Extract the latest archive over `user_data/`:
-     `tar xzf user_data/backups/solsignal-<stamp>.tar.gz -C user_data/`
+     `tar xzf user_data/backups/voltra-<stamp>.tar.gz -C user_data/`
   4. `docker compose up -d` → healthwatch confirms all bots `ok`.
 - Market data is reproducible from `scripts/import_kraken_csv.py`, so it is not
   in the backup (keeps archives small).

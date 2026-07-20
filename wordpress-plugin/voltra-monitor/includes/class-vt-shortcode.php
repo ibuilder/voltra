@@ -1,11 +1,11 @@
 <?php
 /**
- * Optional read-only status shortcode: [solsignal_status]
+ * Optional read-only status shortcode: [voltra_status]
  *
  * Renders the cached WP-Cron snapshot only (no live credentialed calls on the
  * front end). Safe to place on a private/admin-only page. Shows mode + PnL.
  *
- * @package SolSignal_Monitor
+ * @package Voltra_Monitor
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -13,21 +13,21 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Read-only [solsignal_status] shortcode rendering the cached cron snapshot.
+ * Read-only [voltra_status] shortcode rendering the cached cron snapshot.
  */
-class SS_Shortcode {
+class VT_Shortcode {
 
 	/**
 	 * Singleton instance.
 	 *
-	 * @var SS_Shortcode|null
+	 * @var VT_Shortcode|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Get the singleton instance.
 	 *
-	 * @return SS_Shortcode
+	 * @return VT_Shortcode
 	 */
 	public static function instance() {
 		if ( null === self::$instance ) {
@@ -40,7 +40,7 @@ class SS_Shortcode {
 	 * Register the shortcode.
 	 */
 	private function __construct() {
-		add_shortcode( 'solsignal_status', array( $this, 'render' ) );
+		add_shortcode( 'voltra_status', array( $this, 'render' ) );
 	}
 
 	/**
@@ -51,14 +51,14 @@ class SS_Shortcode {
 	 */
 	public function render( $atts ) {
 		unset( $atts );
-		$snap = SS_Cron::snapshot();
+		$snap = VT_Cron::snapshot();
 		if ( ! $snap || empty( $snap['bots'] ) ) {
-			return '<p>' . esc_html__( 'SolSignal: no data yet (waiting for the first cron poll).', 'solsignal-monitor' ) . '</p>';
+			return '<p>' . esc_html__( 'Voltra: no data yet (waiting for the first cron poll).', 'voltra-monitor' ) . '</p>';
 		}
 		$rows = '';
 		foreach ( $snap['bots'] as $b ) {
 			if ( empty( $b['reachable'] ) ) {
-				$rows .= '<tr><td>' . esc_html( $b['name'] ) . '</td><td colspan="3">' . esc_html__( 'unreachable', 'solsignal-monitor' ) . '</td></tr>';
+				$rows .= '<tr><td>' . esc_html( $b['name'] ) . '</td><td colspan="3">' . esc_html__( 'unreachable', 'voltra-monitor' ) . '</td></tr>';
 				continue;
 			}
 			$mode  = ( isset( $b['dry_run'] ) && false === $b['dry_run'] )
@@ -73,7 +73,7 @@ class SS_Shortcode {
 			);
 		}
 		$updated = esc_html( gmdate( 'Y-m-d H:i', (int) $snap['time'] ) . ' UTC' );
-		return '<table class="solsignal-status"><thead><tr><th>Bot</th><th>Mode</th><th>Strategy</th><th>Closed PnL</th></tr></thead><tbody>'
+		return '<table class="voltra-status"><thead><tr><th>Bot</th><th>Mode</th><th>Strategy</th><th>Closed PnL</th></tr></thead><tbody>'
 			. $rows . '</tbody></table><p><small>updated ' . $updated . '</small></p>';
 	}
 }

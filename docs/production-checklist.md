@@ -1,4 +1,4 @@
-# Production checklist — SolSignal go-live runbook
+# Production checklist — Voltra go-live runbook
 
 Nothing here promises profit. The measured edge (real Kraken data, fees
 modeled) is PF 1.15 / ~+5.6%/yr on TrendBreak — at $1,000 that's roughly
@@ -8,8 +8,8 @@ about whether it does, at a price you cap yourself.
 ## A. Machine readiness (do these NOW — they protect the dry-run gate)
 
 - [ ] **One-command autostart install** (recommended). In PowerShell:
-  `powershell -ExecutionPolicy Bypass -File C:\Server\solsignal\scripts\install-autostart.ps1`
-  This copies `scripts\start-solsignal.cmd` into your Startup folder (brings
+  `powershell -ExecutionPolicy Bypass -File C:\Server\voltra\scripts\install-autostart.ps1`
+  This copies `scripts\start-voltra.cmd` into your Startup folder (brings
   the whole stack up at every login) and disables AC sleep/hibernate. No admin
   needed. Undo instructions print at the end. Absence of this cost 6 days of
   dry-run in July — it is the #1 production task.

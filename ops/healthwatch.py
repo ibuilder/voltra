@@ -1,4 +1,4 @@
-"""SolSignal health monitor + alerting sidecar.
+"""Voltra health monitor + alerting sidecar.
 
 Polls every bot's REST API and raises alerts on:
   - unreachable API or non-running state
@@ -32,9 +32,9 @@ TG_TOKEN = os.environ.get("FREQTRADE__TELEGRAM__TOKEN", "")
 TG_CHAT = os.environ.get("FREQTRADE__TELEGRAM__CHAT_ID", "")
 
 DEFAULT_TARGETS = (
-    "solsignal-dry=http://freqtrade:8080,"
-    "solsignal-cross=http://freqtrade-cross:8080,"
-    "solsignal-webhook=http://freqtrade-webhook:8080"
+    "voltra-dry=http://freqtrade:8080,"
+    "voltra-cross=http://freqtrade-cross:8080,"
+    "voltra-webhook=http://freqtrade-webhook:8080"
 )
 TARGETS = [
     tuple(t.split("=", 1))
@@ -52,7 +52,7 @@ def log(msg: str) -> None:
 
 
 def send_alert(level: str, name: str, msg: str) -> None:
-    text = f"[SolSignal {level}] {name}: {msg}"
+    text = f"[Voltra {level}] {name}: {msg}"
     log(text)
     if ALERT_WEBHOOK:
         try:

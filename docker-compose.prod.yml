@@ -4,7 +4,7 @@
 # The base file binds every service to 127.0.0.1 (loopback) — on a VPS that
 # means "not reachable from the internet". This overlay only PUBLISHES Caddy on
 # 80/443, so Caddy is the single public front door and everything else stays
-# private on the compose network. Set SOLSIGNAL_DOMAIN + CADDY_ACME_EMAIL in
+# private on the compose network. Set VOLTRA_DOMAIN + CADDY_ACME_EMAIL in
 # .env for automatic Let's Encrypt TLS.
 
 services:

@@ -1,6 +1,6 @@
-# Disclaimer — read before using SolSignal
+# Disclaimer — read before using Voltra
 
-**SolSignal is experimental software for automated cryptocurrency trading.
+**Voltra is experimental software for automated cryptocurrency trading.
 Cryptocurrency trading carries a high risk of loss. You can lose some or all of
 your money. Use this software entirely at your own risk.**
 

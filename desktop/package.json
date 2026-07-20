@@ -1,7 +1,7 @@
 {
-  "name": "solsignal-controller",
+  "name": "voltra-controller",
   "version": "0.1.0",
-  "description": "SolSignal desktop controller (Tauri) — manages the Docker trading stack",
+  "description": "Voltra desktop controller (Tauri) — manages the Docker trading stack",
   "private": true,
   "scripts": {
     "tauri": "tauri",

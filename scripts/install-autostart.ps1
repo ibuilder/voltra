@@ -1,16 +1,16 @@
-# Installs SolSignal autostart (run once, no admin needed):
+# Installs Voltra autostart (run once, no admin needed):
 #   powershell -ExecutionPolicy Bypass -File scripts\install-autostart.ps1
-# - copies start-solsignal.cmd into the current user's Startup folder so the
+# - copies start-voltra.cmd into the current user's Startup folder so the
 #   stack comes up at every login
 # - disables sleep/hibernate on AC power so the machine stays available
 # Undo: delete the Startup shortcut (see path printed below) and
 #       powercfg /change standby-timeout-ac 30
 
 $ErrorActionPreference = "Stop"
-$proj    = "C:\Server\solsignal"
-$launcher = Join-Path $proj "scripts\start-solsignal.cmd"
+$proj    = "C:\Server\voltra"
+$launcher = Join-Path $proj "scripts\start-voltra.cmd"
 $startup = [Environment]::GetFolderPath("Startup")
-$dest    = Join-Path $startup "SolSignal.cmd"
+$dest    = Join-Path $startup "Voltra.cmd"
 
 Copy-Item -Path $launcher -Destination $dest -Force
 Write-Host "Installed autostart -> $dest"

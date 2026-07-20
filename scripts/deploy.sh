@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Idempotent deploy/refresh of the SolSignal stack on a Linux VPS.
+# Idempotent deploy/refresh of the Voltra stack on a Linux VPS.
 # Run from the repo root:  ./scripts/deploy.sh
 set -euo pipefail
 
@@ -23,7 +23,7 @@ echo "==> Bringing up the stack (Caddy public on 80/443, rest loopback-only)"
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 echo "==> Waiting for bots to report healthy"
-for c in solsignal-freqtrade solsignal-freqtrade-cross solsignal-freqtrade-webhook; do
+for c in voltra-freqtrade voltra-freqtrade-cross voltra-freqtrade-webhook; do
   for _ in $(seq 1 24); do
     s=$(docker inspect --format '{{.State.Health.Status}}' "$c" 2>/dev/null || echo none)
     [ "$s" = "healthy" ] && break
@@ -35,4 +35,4 @@ done
 echo "==> Status"
 docker compose -f docker-compose.yml -f docker-compose.prod.yml ps --format "{{.Name}}: {{.Status}}"
 
-echo "==> Done. Dashboard: https://${SOLSIGNAL_DOMAIN:-your-domain} (via Caddy)."
+echo "==> Done. Dashboard: https://${VOLTRA_DOMAIN:-your-domain} (via Caddy)."

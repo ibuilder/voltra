@@ -1,4 +1,4 @@
-# SolSignal stack. All services: dry-run only, log-rotated, no-new-privileges.
+# Voltra stack. All services: dry-run only, log-rotated, no-new-privileges.
 # Enterprise ingress via Caddy (TLS). See docs/enterprise-readiness.md.
 
 x-logging: &logging
@@ -15,7 +15,7 @@ services:
   freqtrade:
     image: freqtradeorg/freqtrade:stable
     restart: unless-stopped
-    container_name: solsignal-freqtrade
+    container_name: voltra-freqtrade
     <<: *hardening
     logging: *logging
     mem_limit: 1g
@@ -46,7 +46,7 @@ services:
   freqtrade-cross:
     image: freqtradeorg/freqtrade:stable
     restart: unless-stopped
-    container_name: solsignal-freqtrade-cross
+    container_name: voltra-freqtrade-cross
     <<: *hardening
     logging: *logging
     mem_limit: 1g
@@ -74,7 +74,7 @@ services:
   freqtrade-webhook:
     image: freqtradeorg/freqtrade:stable
     restart: unless-stopped
-    container_name: solsignal-freqtrade-webhook
+    container_name: voltra-freqtrade-webhook
     <<: *hardening
     logging: *logging
     mem_limit: 1g
@@ -102,7 +102,7 @@ services:
   webhook-relay:
     image: freqtradeorg/freqtrade:stable
     restart: unless-stopped
-    container_name: solsignal-webhook-relay
+    container_name: voltra-webhook-relay
     <<: *hardening
     logging: *logging
     volumes:
@@ -121,7 +121,7 @@ services:
   reporter:
     image: freqtradeorg/freqtrade:stable
     restart: unless-stopped
-    container_name: solsignal-reporter
+    container_name: voltra-reporter
     <<: *hardening
     logging: *logging
     volumes:
@@ -130,8 +130,8 @@ services:
     env_file:
       - .env
     environment:
-      - SOLSIGNAL_BOT1_URL=http://freqtrade:8080
-      - SOLSIGNAL_BOT2_URL=http://freqtrade-cross:8080
+      - VOLTRA_BOT1_URL=http://freqtrade:8080
+      - VOLTRA_BOT2_URL=http://freqtrade-cross:8080
     entrypoint: ["/bin/sh", "-c"]
     command: ["while true; do python /freqtrade/scripts/report.py --out-dir /freqtrade/docs/reports || echo '[reporter] failed - retrying next cycle'; sleep 21600; done"]
 
@@ -140,7 +140,7 @@ services:
   healthwatch:
     image: freqtradeorg/freqtrade:stable
     restart: unless-stopped
-    container_name: solsignal-healthwatch
+    container_name: voltra-healthwatch
     <<: *hardening
     logging: *logging
     volumes:
@@ -155,7 +155,7 @@ services:
   backup:
     image: freqtradeorg/freqtrade:stable
     restart: unless-stopped
-    container_name: solsignal-backup
+    container_name: voltra-backup
     <<: *hardening
     logging: *logging
     volumes:
@@ -164,11 +164,11 @@ services:
     entrypoint: ["python"]
     command: ["/ops/backup.py"]
 
-  # Custom SolSignal dashboard (Tailwind, static) — reads the freqtrade REST API.
+  # Custom Voltra dashboard (Tailwind, static) — reads the freqtrade REST API.
   dashboard:
     image: nginx:alpine
     restart: unless-stopped
-    container_name: solsignal-dashboard
+    container_name: voltra-dashboard
     <<: *hardening
     logging: *logging
     volumes:
@@ -177,16 +177,16 @@ services:
       - "127.0.0.1:8899:80"
 
   # Hardened TLS ingress. Local: internal CA (self-signed). Production: set
-  # SOLSIGNAL_DOMAIN + expose 80/443 publicly for automatic Let's Encrypt.
+  # VOLTRA_DOMAIN + expose 80/443 publicly for automatic Let's Encrypt.
   caddy:
     # Custom image adds the rate-limit module (ops/Caddy.Dockerfile).
     # First run: docker compose build caddy
-    image: solsignal-caddy:local
+    image: voltra-caddy:local
     build:
       context: .
       dockerfile: ops/Caddy.Dockerfile
     restart: unless-stopped
-    container_name: solsignal-caddy
+    container_name: voltra-caddy
     <<: *hardening
     logging: *logging
     volumes:

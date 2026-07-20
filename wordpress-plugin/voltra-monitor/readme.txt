@@ -1,5 +1,5 @@
-=== SolSignal Monitor ===
-Contributors: solsignal
+=== Voltra Monitor ===
+Contributors: voltra
 Tags: freqtrade, trading, monitoring, dashboard
 Requires at least: 6.0
 Tested up to: 6.6
@@ -7,11 +7,11 @@ Requires PHP: 7.4
 Stable tag: 0.2.0
 License: MIT
 
-Monitoring + control panel for SolSignal Freqtrade bots, via the Freqtrade REST API and WP-Cron.
+Monitoring + control panel for Voltra Freqtrade bots, via the Freqtrade REST API and WP-Cron.
 
 == Description ==
 
-SolSignal Monitor is a WordPress admin dashboard for the SolSignal Freqtrade
+Voltra Monitor is a WordPress admin dashboard for the Voltra Freqtrade
 trading bots. It talks to each bot's REST API (server-side) and shows mode,
 state, strategy, balance, open trades, and closed PnL. WP-Cron polls the bots
 every 15 minutes, caches a snapshot, and emails a **dry-run tripwire** alert if
@@ -28,13 +28,13 @@ loop; this is a monitor/control panel only, and it never enables live trading.
 * WP-Cron poller + dry-run tripwire email + unreachable alerts.
 * **Persistent data collection**: each poll is stored in a custom table; a
   'Collected data' admin tab shows history and exports it as CSV.
-* Optional read-only `[solsignal_status]` shortcode (renders the cron snapshot).
+* Optional read-only `[voltra_status]` shortcode (renders the cron snapshot).
 * Optional, off-by-default start/stop controls (capability + nonce gated).
 
 == Security ==
 
 * All actions require the `manage_options` capability and a nonce.
-* Prefer defining `SOLSIGNAL_API_PASSWORD` in wp-config.php over storing the
+* Prefer defining `VOLTRA_API_PASSWORD` in wp-config.php over storing the
   password in the database.
 * Only expose the bot REST API to WordPress over a trusted network or via the
   Caddy TLS ingress — never plain HTTP over the internet.
@@ -54,10 +54,10 @@ disable the page-load trigger:
 
 == Installation ==
 
-1. Copy the `solsignal-monitor` folder to `wp-content/plugins/`.
+1. Copy the `voltra-monitor` folder to `wp-content/plugins/`.
 2. Activate it in Plugins.
-3. SolSignal menu → Settings: set the bot URLs, username, password, alert email.
-4. (Recommended) define SOLSIGNAL_API_PASSWORD in wp-config.php.
+3. Voltra menu → Settings: set the bot URLs, username, password, alert email.
+4. (Recommended) define VOLTRA_API_PASSWORD in wp-config.php.
 
 == Changelog ==
 

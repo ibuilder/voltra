@@ -3,10 +3,10 @@
  * Settings page (WP Settings API). Stores the list of bots and credentials.
  *
  * SECURITY: the password can be set in the DB here, but for production define
- * SOLSIGNAL_API_PASSWORD in wp-config.php instead — then it never touches the
+ * VOLTRA_API_PASSWORD in wp-config.php instead — then it never touches the
  * database. The UI warns when the DB value is used.
  *
- * @package SolSignal_Monitor
+ * @package Voltra_Monitor
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -16,26 +16,26 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Plugin settings storage and settings-page rendering.
  */
-class SS_Settings {
+class VT_Settings {
 
 	/**
 	 * Option name in wp_options.
 	 *
 	 * @var string
 	 */
-	const OPTION = 'solsignal_mon_settings';
+	const OPTION = 'voltra_mon_settings';
 
 	/**
 	 * Singleton instance.
 	 *
-	 * @var SS_Settings|null
+	 * @var VT_Settings|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Get the singleton instance.
 	 *
-	 * @return SS_Settings
+	 * @return VT_Settings
 	 */
 	public static function instance() {
 		if ( null === self::$instance ) {
@@ -58,8 +58,8 @@ class SS_Settings {
 	 */
 	public static function get() {
 		$defaults = array(
-			'bots'            => "solsignal-dry|http://127.0.0.1:8080\nsolsignal-cross|http://127.0.0.1:8081\nsolsignal-webhook|http://127.0.0.1:8082",
-			'username'        => 'solsignal',
+			'bots'            => "voltra-dry|http://127.0.0.1:8080\nvoltra-cross|http://127.0.0.1:8081\nvoltra-webhook|http://127.0.0.1:8082",
+			'username'        => 'voltra',
 			'password'        => '',
 			'alert_email'     => get_option( 'admin_email' ),
 			'enable_controls' => 0,
@@ -73,8 +73,8 @@ class SS_Settings {
 	 * @return string
 	 */
 	public static function password() {
-		if ( defined( 'SOLSIGNAL_API_PASSWORD' ) && SOLSIGNAL_API_PASSWORD ) {
-			return SOLSIGNAL_API_PASSWORD;
+		if ( defined( 'VOLTRA_API_PASSWORD' ) && VOLTRA_API_PASSWORD ) {
+			return VOLTRA_API_PASSWORD;
 		}
 		$s = self::get();
 		return isset( $s['password'] ) ? $s['password'] : '';
@@ -109,7 +109,7 @@ class SS_Settings {
 	 */
 	public function register() {
 		register_setting(
-			'solsignal_mon',
+			'voltra_mon',
 			self::OPTION,
 			array( 'sanitize_callback' => array( $this, 'sanitize' ) )
 		);
@@ -147,39 +147,39 @@ class SS_Settings {
 	 */
 	public static function render_form() {
 		$s           = self::get();
-		$using_const = defined( 'SOLSIGNAL_API_PASSWORD' ) && SOLSIGNAL_API_PASSWORD;
+		$using_const = defined( 'VOLTRA_API_PASSWORD' ) && VOLTRA_API_PASSWORD;
 		?>
 		<form method="post" action="options.php">
-			<?php settings_fields( 'solsignal_mon' ); ?>
+			<?php settings_fields( 'voltra_mon' ); ?>
 			<table class="form-table" role="presentation">
 				<tr>
-					<th scope="row"><label for="ss_bots"><?php esc_html_e( 'Bots (name|url per line)', 'solsignal-monitor' ); ?></label></th>
+					<th scope="row"><label for="ss_bots"><?php esc_html_e( 'Bots (name|url per line)', 'voltra-monitor' ); ?></label></th>
 					<td><textarea id="ss_bots" name="<?php echo esc_attr( self::OPTION ); ?>[bots]" rows="4" class="large-text code"><?php echo esc_textarea( $s['bots'] ); ?></textarea></td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="ss_user"><?php esc_html_e( 'API username', 'solsignal-monitor' ); ?></label></th>
+					<th scope="row"><label for="ss_user"><?php esc_html_e( 'API username', 'voltra-monitor' ); ?></label></th>
 					<td><input id="ss_user" type="text" name="<?php echo esc_attr( self::OPTION ); ?>[username]" value="<?php echo esc_attr( $s['username'] ); ?>" class="regular-text"></td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="ss_pass"><?php esc_html_e( 'API password', 'solsignal-monitor' ); ?></label></th>
+					<th scope="row"><label for="ss_pass"><?php esc_html_e( 'API password', 'voltra-monitor' ); ?></label></th>
 					<td>
 						<?php if ( $using_const ) : ?>
-							<em><?php esc_html_e( 'Using SOLSIGNAL_API_PASSWORD from wp-config.php (recommended).', 'solsignal-monitor' ); ?></em>
+							<em><?php esc_html_e( 'Using VOLTRA_API_PASSWORD from wp-config.php (recommended).', 'voltra-monitor' ); ?></em>
 						<?php else : ?>
-							<input id="ss_pass" type="password" name="<?php echo esc_attr( self::OPTION ); ?>[password]" value="" placeholder="<?php echo $s['password'] ? esc_attr__( '(unchanged)', 'solsignal-monitor' ) : ''; ?>" class="regular-text" autocomplete="new-password">
-							<p class="description"><?php esc_html_e( 'Stored in the database. For better security, define SOLSIGNAL_API_PASSWORD in wp-config.php instead.', 'solsignal-monitor' ); ?></p>
+							<input id="ss_pass" type="password" name="<?php echo esc_attr( self::OPTION ); ?>[password]" value="" placeholder="<?php echo $s['password'] ? esc_attr__( '(unchanged)', 'voltra-monitor' ) : ''; ?>" class="regular-text" autocomplete="new-password">
+							<p class="description"><?php esc_html_e( 'Stored in the database. For better security, define VOLTRA_API_PASSWORD in wp-config.php instead.', 'voltra-monitor' ); ?></p>
 						<?php endif; ?>
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="ss_email"><?php esc_html_e( 'Alert email', 'solsignal-monitor' ); ?></label></th>
+					<th scope="row"><label for="ss_email"><?php esc_html_e( 'Alert email', 'voltra-monitor' ); ?></label></th>
 					<td><input id="ss_email" type="email" name="<?php echo esc_attr( self::OPTION ); ?>[alert_email]" value="<?php echo esc_attr( $s['alert_email'] ); ?>" class="regular-text"></td>
 				</tr>
 				<tr>
-					<th scope="row"><?php esc_html_e( 'Advanced controls', 'solsignal-monitor' ); ?></th>
+					<th scope="row"><?php esc_html_e( 'Advanced controls', 'voltra-monitor' ); ?></th>
 					<td>
 						<label><input type="checkbox" name="<?php echo esc_attr( self::OPTION ); ?>[enable_controls]" value="1" <?php checked( $s['enable_controls'], 1 ); ?>>
-						<?php esc_html_e( 'Enable start/stop and force-exit buttons (off by default). Never enables live trading.', 'solsignal-monitor' ); ?></label>
+						<?php esc_html_e( 'Enable start/stop and force-exit buttons (off by default). Never enables live trading.', 'voltra-monitor' ); ?></label>
 					</td>
 				</tr>
 			</table>

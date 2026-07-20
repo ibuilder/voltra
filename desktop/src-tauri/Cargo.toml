@@ -1,8 +1,8 @@
 [package]
-name = "solsignal-controller"
+name = "voltra-controller"
 version = "0.1.0"
-description = "SolSignal desktop controller — manages the Docker trading stack"
-authors = ["SolSignal"]
+description = "Voltra desktop controller — manages the Docker trading stack"
+authors = ["Voltra"]
 edition = "2021"
 
 [build-dependencies]

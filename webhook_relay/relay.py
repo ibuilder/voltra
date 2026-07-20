@@ -30,7 +30,7 @@ FT_URL = os.environ.get("RELAY_FREQTRADE_URL", "http://freqtrade-webhook:8080").
 FT_USER = os.environ.get("FREQTRADE__API_SERVER__USERNAME", "")
 FT_PASS = os.environ.get("FREQTRADE__API_SERVER__PASSWORD", "")
 
-app = FastAPI(title="SolSignal TradingView relay")
+app = FastAPI(title="Voltra TradingView relay")
 _token = {"v": None}
 
 

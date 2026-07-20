@@ -1,6 +1,6 @@
-// SolSignal desktop controller.
+// Voltra desktop controller.
 //
-// A thin tray app that manages the Dockerized SolSignal trading stack — it does
+// A thin tray app that manages the Dockerized Voltra trading stack — it does
 // NOT trade or hold strategy logic itself (that all lives in the Docker
 // containers). It just: starts/stops the stack, reports status, opens the
 // dashboard, and can enable run-on-login on its own.
@@ -20,7 +20,7 @@ use tauri::{Emitter, Manager};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_autostart::ManagerExt;
 
-const DEFAULT_PROJECT_DIR: &str = "C:\\Server\\solsignal";
+const DEFAULT_PROJECT_DIR: &str = "C:\\Server\\voltra";
 
 // Candidate docker CLI locations (Docker Desktop is often not on PATH).
 fn docker_bin() -> String {
@@ -158,7 +158,7 @@ fn main() {
 
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("SolSignal Controller")
+                .tooltip("Voltra Controller")
                 .menu(&menu)
                 .on_menu_event(move |app, event| match event.id.as_ref() {
                     "open" => open_dashboard(),
@@ -193,5 +193,5 @@ fn main() {
             }
         })
         .run(tauri::generate_context!())
-        .expect("error while running SolSignal controller");
+        .expect("error while running Voltra controller");
 }

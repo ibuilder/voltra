@@ -33,3 +33,6 @@ desktop/src-tauri/gen/
 
 # Trade ledger exports (contain trade data)
 user_data/exports/
+
+# Build artifacts (plugin zips, etc.)
+dist/

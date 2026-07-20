@@ -2,7 +2,7 @@
 
 Generates NO entry signals of its own — entries arrive only via the REST
 /forceenter endpoint driven by the webhook relay. It exists so that even an
-external TradingView signal is wrapped in SolSignal's risk discipline:
+external TradingView signal is wrapped in Voltra's risk discipline:
 1% ATR-based position sizing, a 2xATR on-exchange stoploss, and the same
 MaxDrawdown / StoplossGuard / Cooldown protections as the validated bots.
 

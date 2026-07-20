@@ -1,4 +1,4 @@
-# SolSignal
+# Voltra
 
 Freqtrade crypto trading bot. Kraken (primary) / Coinbase Advanced Trade (backup),
 pairs BTC/USD · ETH/USD · SOL/USD plus screener output.
@@ -7,7 +7,7 @@ pairs BTC/USD · ETH/USD · SOL/USD plus screener output.
 
 ## Desktop app (run it on its own)
 
-The **SolSignal Controller** is a lightweight Tauri system-tray app that manages
+The **Voltra Controller** is a lightweight Tauri system-tray app that manages
 the whole Docker stack — start/stop, live status, open dashboard, and a checkbox
 to launch at login (no manual Startup-folder steps). It's a controller only; it
 never enables live trading. Build/release and GitHub setup:
@@ -21,7 +21,7 @@ trading carries real risk of loss, not financial advice, default is paper only.
 To run the stack always-on and reach it from anywhere, deploy to a free VM:
 [docs/deploy-oracle-free.md](docs/deploy-oracle-free.md) (Oracle Cloud
 Always-Free ARM, $0/mo). Production overlay `docker-compose.prod.yml` exposes
-only Caddy (TLS) publicly; `scripts/deploy.sh` + `deploy/solsignal.service`
+only Caddy (TLS) publicly; `scripts/deploy.sh` + `deploy/voltra.service`
 make it turnkey and boot-persistent. At small capital, free hosting is the
 right call — a paid VPS would cost more than the strategy is expected to earn
 (see the cost analysis in that guide).
@@ -34,7 +34,7 @@ right call — a paid VPS would cost more than the strategy is expected to earn
 3. `docker compose pull`
 4. `docker compose up -d` →
    - **FreqUI** (full control panel, bundled with freqtrade): http://127.0.0.1:8080
-   - **SolSignal dashboard** (custom Tailwind read-only view): http://127.0.0.1:8899
+   - **Voltra dashboard** (custom Tailwind read-only view): http://127.0.0.1:8899
    Both use the same login from `.env` (`FREQTRADE__API_SERVER__USERNAME`/`PASSWORD`).
    The custom dashboard is a single static page (`dashboard/index.html`) that reads
    the freqtrade REST API; its origin must be listed in `api_server.CORS_origins`
@@ -56,9 +56,9 @@ Current fleet:
 
 | Bot | Container | API port | Strategy | Pairs |
 |---|---|---|---|---|
-| solsignal-dry | solsignal-freqtrade | 8080 | TrendBreakStrategy (tuned) | BTC/ETH/SOL/XRP |
-| solsignal-cross | solsignal-freqtrade-cross | 8081 | SolCrossSignalStrategy | SOL/USD |
-| solsignal-webhook | solsignal-freqtrade-webhook | 8082 | WebhookRelayStrategy (TradingView-driven, experimental) | BTC/ETH/SOL/XRP |
+| voltra-dry | voltra-freqtrade | 8080 | TrendBreakStrategy (tuned) | BTC/ETH/SOL/XRP |
+| voltra-cross | voltra-freqtrade-cross | 8081 | SolCrossSignalStrategy | SOL/USD |
+| voltra-webhook | voltra-freqtrade-webhook | 8082 | WebhookRelayStrategy (TradingView-driven, experimental) | BTC/ETH/SOL/XRP |
 
 Plus `webhook-relay` (:8090) bridging TradingView alerts → bot #3 — see
 [docs/tradingview-integration.md](docs/tradingview-integration.md).
@@ -67,7 +67,7 @@ To view a bot:
 - **FreqUI** (http://127.0.0.1:8080): top-left bot selector → "Add new bot" →
   enter `http://127.0.0.1:8081` + the `.env` username/password. FreqUI stores
   multiple bots and switches between them.
-- **SolSignal dashboard** (http://127.0.0.1:8899): pick the bot's API URL from
+- **Voltra dashboard** (http://127.0.0.1:8899): pick the bot's API URL from
   the dropdown on the login screen.
 
 To register a NEW bot (bot #3, etc.):
@@ -114,8 +114,8 @@ PnL, drawdown, and — the Phase 5 gate input — divergence between dry-run
 results and pro-rata backtest expectations (>20% = red flag, judge at day 30).
 To automate it, create a Windows scheduled task (run once, as admin if needed):
 
-    schtasks /Create /SC WEEKLY /D MON /ST 08:00 /TN "SolSignal Weekly Report" ^
-      /TR "\"C:\laragon\bin\python\python-3.10\python.exe\" \"C:\Server\solsignal\scripts\report.py\""
+    schtasks /Create /SC WEEKLY /D MON /ST 08:00 /TN "Voltra Weekly Report" ^
+      /TR "\"C:\laragon\bin\python\python-3.10\python.exe\" \"C:\Server\voltra\scripts\report.py\""
 
 ## Kraken-specific notes
 

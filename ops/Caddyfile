@@ -1,11 +1,11 @@
-# SolSignal hardened ingress (stock Caddy 2).
+# Voltra hardened ingress (stock Caddy 2).
 #
 # Single TLS-terminating front door. Caddy auto-provisions Let's Encrypt certs
-# when SOLSIGNAL_DOMAIN is a real public domain (ports 80/443 reachable); for
-# local use (SOLSIGNAL_DOMAIN=localhost) it uses its internal CA — TLS is still
+# when VOLTRA_DOMAIN is a real public domain (ports 80/443 reachable); for
+# local use (VOLTRA_DOMAIN=localhost) it uses its internal CA — TLS is still
 # on, just self-signed. This also gives the TradingView relay a real HTTPS URL.
 #
-# .env:  SOLSIGNAL_DOMAIN=trade.example.com   CADDY_ACME_EMAIL=you@example.com
+# .env:  VOLTRA_DOMAIN=trade.example.com   CADDY_ACME_EMAIL=you@example.com
 #
 # Optional hardening not enabled here (need a config choice / plugin):
 #   - basic_auth on the API routes (generate a bcrypt hash; FreqUI already has
@@ -28,7 +28,7 @@
 	}
 }
 
-{$SOLSIGNAL_DOMAIN:localhost} {
+{$VOLTRA_DOMAIN:localhost} {
 	# Bind all container interfaces so the published port reaches Caddy even
 	# when the site name is "localhost" (which otherwise binds loopback-only).
 	bind 0.0.0.0

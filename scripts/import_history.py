@@ -44,7 +44,7 @@ def fetch_pair(pair: str, start: datetime) -> pd.DataFrame:
                 "start": cursor.isoformat(),
                 "end": chunk_end.isoformat(),
             },
-            headers={"User-Agent": "solsignal-research/1.0"},
+            headers={"User-Agent": "voltra-research/1.0"},
             timeout=30,
         )
         resp.raise_for_status()

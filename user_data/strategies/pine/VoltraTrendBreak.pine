@@ -1,8 +1,8 @@
 //@version=6
-// SolSignal TrendBreak — Pine v6 reference indicator.
+// Voltra TrendBreak — Pine v6 reference indicator.
 //
 // Mirrors the Python TrendBreakStrategy entry logic and fires webhook alerts
-// in the JSON shape the SolSignal relay expects. Two uses:
+// in the JSON shape the Voltra relay expects. Two uses:
 //   1) Prototype/visualize strategy tweaks on TradingView charts.
 //   2) Drive the experimental webhook bot (#3) via TradingView alerts.
 //
@@ -23,7 +23,7 @@
 // If you add higher-timeframe context later, pass lookahead=barmerge.lookahead_off
 // to request.security and reference the [1] value.
 
-indicator("SolSignal TrendBreak v6", overlay = true)
+indicator("Voltra TrendBreak v6", overlay = true)
 
 swingLen = input.int(20, "Swing lookback bars")
 volMult  = input.float(1.5, "Volume x 20-bar avg")
@@ -40,7 +40,7 @@ closeSig  = ta.crossunder(close, swingLow)
 plotshape(longBreak, "long",  shape.triangleup,   location.belowbar, color.green, size = size.small)
 plotshape(closeSig,  "close", shape.triangledown, location.abovebar, color.red,   size = size.small)
 
-// JSON payloads for the SolSignal relay (POST /webhook). syminfo.ticker gives
+// JSON payloads for the Voltra relay (POST /webhook). syminfo.ticker gives
 // e.g. "BTCUSD"; the relay normalizes it to "BTC/USD".
 enterMsg = '{"secret":"' + secret + '","action":"buy","pair":"'   + syminfo.ticker + '"}'
 exitMsg  = '{"secret":"' + secret + '","action":"close","pair":"' + syminfo.ticker + '"}'

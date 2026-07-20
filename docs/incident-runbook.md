@@ -10,10 +10,10 @@ first, diagnose second. In dry-run nothing is at risk — practice these now.
 ## Fast commands
 
 ```bash
-cd /opt/solsignal            # or C:\Server\solsignal
+cd /opt/voltra            # or C:\Server\voltra
 docker compose ps                                  # health of all services
-docker logs solsignal-freqtrade --tail 100         # a bot's log
-docker logs solsignal-healthwatch --tail 50        # alerts + tripwire
+docker logs voltra-freqtrade --tail 100         # a bot's log
+docker logs voltra-healthwatch --tail 50        # alerts + tripwire
 docker compose restart <service>                   # restart one service
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d  # bring all up
 ```

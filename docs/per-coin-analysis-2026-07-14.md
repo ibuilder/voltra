@@ -68,7 +68,7 @@ Portfolio backtests, max 3 concurrent, split by year:
 
 BTC/ETH/SOL/XRP is the only basket that is **positive both years with
 drawdown under 15% both years**. It adds the one proven-consistent coin
-(XRP) to the SolSignal core. Broader baskets add drawdown from junk coins
+(XRP) to the Voltra core. Broader baskets add drawdown from junk coins
 (NEAR/AAVE/ADA) without adding edge — diversification into losers is not
 diversification.
 

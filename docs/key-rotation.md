@@ -26,7 +26,7 @@ Rotate on a schedule and immediately on any suspected leak. After editing
    FREQTRADE__EXCHANGE__SECRET=...
    ```
 4. `docker compose up -d --force-recreate freqtrade freqtrade-cross freqtrade-webhook`
-5. Verify: `docker logs solsignal-freqtrade` shows no auth error; a balance
+5. Verify: `docker logs voltra-freqtrade` shows no auth error; a balance
    call succeeds.
 6. **Delete the old key** on Kraken.
 
@@ -42,7 +42,7 @@ Rotate on a schedule and immediately on any suspected leak. After editing
 1. New value → `.env` `FREQTRADE__API_SERVER__PASSWORD=`.
 2. `docker compose up -d --force-recreate freqtrade freqtrade-cross freqtrade-webhook`.
 3. Update it wherever it's used: FreqUI login, the custom dashboard, and the
-   WordPress plugin settings (or `SOLSIGNAL_API_PASSWORD` in wp-config.php).
+   WordPress plugin settings (or `VOLTRA_API_PASSWORD` in wp-config.php).
 
 ## 4. JWT_SECRET_KEY / WS_TOKEN
 

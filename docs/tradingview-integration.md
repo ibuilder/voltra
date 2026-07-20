@@ -21,7 +21,7 @@ unvalidated input the build plan warns against.
    walk-forward validated (see workflow below). `strategies/pine/*.pine` are
    reference translations, not the source of truth.
 2. **Experimental live signalling.** Route TradingView alerts to bot #3 to see
-   how an external signal behaves in dry-run — still wrapped in SolSignal's
+   how an external signal behaves in dry-run — still wrapped in Voltra's
    ATR stop + 1% sizing + protections.
 
 ## Architecture
@@ -79,7 +79,7 @@ TradingView alert message (must be valid JSON so TV sends `application/json`):
    - Production: a real reverse proxy (Caddy/nginx) with TLS.
    - **Never expose plain http.** The shared secret is the only auth; without
      TLS it travels in cleartext.
-4. In TradingView: add `SolSignalTrendBreak.pine` to a chart -> Create Alert ->
+4. In TradingView: add `VoltraTrendBreak.pine` to a chart -> Create Alert ->
    Condition = the indicator -> Webhook URL = your tunnel `/webhook` -> paste the
    JSON payload as the alert message (with your real secret). Needs **TV Pro+**.
 

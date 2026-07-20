@@ -1,4 +1,4 @@
-# SolSignal Controller (desktop app) — build & release
+# Voltra Controller (desktop app) — build & release
 
 A lightweight **Tauri** system-tray app that runs the Docker trading stack "on
 its own": start/stop, live status, open dashboard, and a checkbox to launch at
@@ -8,7 +8,7 @@ enables live trading.
 
 ## What you get
 
-- One `SolSignal Controller.exe` (NSIS installer + MSI). Double-click installs.
+- One `Voltra Controller.exe` (NSIS installer + MSI). Double-click installs.
 - Tray icon: Start stack / Stop stack / Open Dashboard / Show / Quit.
 - Window: service list, autostart toggle, project-folder picker.
 - Auto-updates from signed GitHub Releases (prompts before installing).
@@ -34,13 +34,13 @@ content and need your GitHub auth):
 
 ```
 # 1. create the repo (private is fine; Releases still work)
-gh repo create solsignal --private --source . --remote origin --push
+gh repo create voltra --private --source . --remote origin --push
 
 # 2. generate the updater signing keypair (KEEP THE PRIVATE KEY SECRET)
 cd desktop && npx @tauri-apps/cli signer generate -w ../.tauri-signing.key
 #    -> prints a PUBLIC key. Paste it into desktop/src-tauri/tauri.conf.json
 #       at plugins.updater.pubkey (replacing REPLACE_WITH_YOUR_...).
-#    -> also replace REPLACE_OWNER in the endpoint URL with your GitHub user/org.
+#    -> also replace ibuilder in the endpoint URL with your GitHub user/org.
 
 # 3. add the private key as repo secrets (Settings -> Secrets -> Actions)
 #      TAURI_SIGNING_PRIVATE_KEY            = contents of .tauri-signing.key
@@ -65,7 +65,7 @@ installed apps will see the update, verify its signature, and prompt to install.
 
 ## Configuration
 
-- The app defaults the project folder to `C:\Server\solsignal`. Change it in the
+- The app defaults the project folder to `C:\Server\voltra`. Change it in the
   window if your checkout lives elsewhere; it's saved to the app config dir.
 - The app finds `docker.exe` on PATH or at the Docker Desktop default location.
 - It assumes Docker Desktop is installed. (A future version could bundle a

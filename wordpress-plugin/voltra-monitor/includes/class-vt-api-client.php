@@ -5,7 +5,7 @@
  * Server-side only — credentials never reach the browser. The JWT token is
  * cached in a transient and refreshed once on a 401.
  *
- * @package SolSignal_Monitor
+ * @package Voltra_Monitor
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Thin authenticated client for one Freqtrade bot's REST API.
  */
-class SS_Api_Client {
+class VT_Api_Client {
 
 	/**
 	 * Bot base URL, e.g. http://127.0.0.1:8080.
@@ -56,7 +56,7 @@ class SS_Api_Client {
 		$this->base_url  = untrailingslashit( $base_url );
 		$this->user      = $user;
 		$this->pass      = $pass;
-		$this->cache_key = 'ss_mon_token_' . md5( $this->base_url . $this->user );
+		$this->cache_key = 'voltra_mon_token_' . md5( $this->base_url . $this->user );
 	}
 
 	/**
@@ -87,12 +87,12 @@ class SS_Api_Client {
 		}
 		$code = (int) wp_remote_retrieve_response_code( $resp );
 		if ( 200 !== $code ) {
-			return new WP_Error( 'ss_login', sprintf( 'login failed (HTTP %d)', $code ) );
+			return new WP_Error( 'vt_login', sprintf( 'login failed (HTTP %d)', $code ) );
 		}
 		$body  = json_decode( wp_remote_retrieve_body( $resp ), true );
 		$token = isset( $body['access_token'] ) ? $body['access_token'] : '';
 		if ( ! $token ) {
-			return new WP_Error( 'ss_login', 'no access_token in response' );
+			return new WP_Error( 'vt_login', 'no access_token in response' );
 		}
 		set_transient( $this->cache_key, $token, 10 * MINUTE_IN_SECONDS );
 		return $token;
@@ -126,11 +126,11 @@ class SS_Api_Client {
 				continue;
 			}
 			if ( 200 !== $code ) {
-				return new WP_Error( 'ss_api', sprintf( '%s -> HTTP %d', $path, $code ) );
+				return new WP_Error( 'vt_api', sprintf( '%s -> HTTP %d', $path, $code ) );
 			}
 			return json_decode( wp_remote_retrieve_body( $resp ), true );
 		}
-		return new WP_Error( 'ss_api', 'unreachable' );
+		return new WP_Error( 'vt_api', 'unreachable' );
 	}
 
 	/**

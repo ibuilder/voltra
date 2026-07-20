@@ -1,4 +1,4 @@
-"""SolSignal automated backup sidecar.
+"""Voltra automated backup sidecar.
 
 Periodically archives trade databases + configs + tuned params to a
 timestamped tar.gz with retention. Secrets (.env) are DELIBERATELY excluded —
@@ -35,7 +35,7 @@ def log(msg: str) -> None:
 def make_backup() -> Path:
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    out = BACKUP_DIR / f"solsignal-{stamp}.tar.gz"
+    out = BACKUP_DIR / f"voltra-{stamp}.tar.gz"
     members = []
     for pattern in INCLUDE:
         members.extend(sorted(USER_DATA.glob(pattern)))
@@ -48,7 +48,7 @@ def make_backup() -> Path:
 
 
 def prune() -> None:
-    archives = sorted(BACKUP_DIR.glob("solsignal-*.tar.gz"))
+    archives = sorted(BACKUP_DIR.glob("voltra-*.tar.gz"))
     for old in archives[:-KEEP] if len(archives) > KEEP else []:
         old.unlink()
         log(f"pruned {old.name}")

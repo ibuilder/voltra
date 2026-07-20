@@ -1,6 +1,6 @@
 name: Release desktop controller
 
-# Build the SolSignal Controller .exe/.msi and publish a GitHub Release with a
+# Build the Voltra Controller .exe/.msi and publish a GitHub Release with a
 # signed updater manifest (latest.json). Trigger by pushing a version tag:
 #   git tag app-v0.1.0 && git push origin app-v0.1.0
 #
@@ -48,7 +48,7 @@ jobs:
         with:
           projectPath: desktop
           tagName: ${{ github.ref_name }}
-          releaseName: "SolSignal Controller ${{ github.ref_name }}"
+          releaseName: "Voltra Controller ${{ github.ref_name }}"
           releaseBody: "See CHANGELOG.md. Signed auto-update artifacts attached."
           releaseDraft: true
           prerelease: false

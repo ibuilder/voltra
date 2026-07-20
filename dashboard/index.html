@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SolSignal — Dashboard</title>
+<title>Voltra — Dashboard</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
@@ -21,12 +21,12 @@
     <label class="mt-6 block text-xs uppercase tracking-wide text-slate-400">API URL</label>
     <input id="in-api" value="http://127.0.0.1:8080" list="bot-list" class="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none">
     <datalist id="bot-list">
-      <option value="http://127.0.0.1:8080">solsignal-dry (TrendBreak, BTC/ETH/SOL/XRP)</option>
-      <option value="http://127.0.0.1:8081">solsignal-cross (BTC/ETH → SOL)</option>
-      <option value="http://127.0.0.1:8082">solsignal-webhook (TradingView, experimental)</option>
+      <option value="http://127.0.0.1:8080">voltra-dry (TrendBreak, BTC/ETH/SOL/XRP)</option>
+      <option value="http://127.0.0.1:8081">voltra-cross (BTC/ETH → SOL)</option>
+      <option value="http://127.0.0.1:8082">voltra-webhook (TradingView, experimental)</option>
     </datalist>
     <label class="mt-4 block text-xs uppercase tracking-wide text-slate-400">Username</label>
-    <input id="in-user" value="solsignal" autocomplete="username" class="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none">
+    <input id="in-user" value="voltra" autocomplete="username" class="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none">
     <label class="mt-4 block text-xs uppercase tracking-wide text-slate-400">Password</label>
     <input id="in-pass" type="password" autocomplete="current-password" class="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none">
     <button class="mt-6 w-full rounded-lg bg-amber-400 py-2 font-semibold text-slate-900 hover:bg-amber-300">Connect</button>
@@ -89,7 +89,7 @@
   </section>
 
   <footer class="mt-6 text-center text-xs text-slate-600">
-    SolSignal dry-run dashboard · data via Freqtrade REST API · not financial advice
+    Voltra dry-run dashboard · data via Freqtrade REST API · not financial advice
   </footer>
 </div>
 

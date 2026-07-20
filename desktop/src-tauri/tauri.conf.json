@@ -1,15 +1,15 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "SolSignal Controller",
+  "productName": "Voltra Controller",
   "version": "0.1.0",
-  "identifier": "com.solsignal.controller",
+  "identifier": "com.voltra.controller",
   "build": {
     "frontendDist": "../ui"
   },
   "app": {
     "windows": [
       {
-        "title": "SolSignal Controller",
+        "title": "Voltra Controller",
         "width": 520,
         "height": 640,
         "resizable": true,
@@ -40,7 +40,7 @@
       "dialog": true,
       "pubkey": "REPLACE_WITH_YOUR_TAURI_UPDATER_PUBLIC_KEY",
       "endpoints": [
-        "https://github.com/REPLACE_OWNER/solsignal/releases/latest/download/latest.json"
+        "https://github.com/ibuilder/voltra/releases/latest/download/latest.json"
       ]
     }
   }

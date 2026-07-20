@@ -29,14 +29,14 @@ DRY_RUN_START = datetime(2026, 7, 8, tzinfo=timezone.utc)
 BOTS = [
     {
         # BTC/ETH/SOL/XRP validated basket, 2025 OOS: 72 trades, +3.19%.
-        "name": "solsignal-dry (TrendBreak, BTC/ETH/SOL/XRP)",
-        "url": os.environ.get("SOLSIGNAL_BOT1_URL", "http://127.0.0.1:8080"),
+        "name": "voltra-dry (TrendBreak, BTC/ETH/SOL/XRP)",
+        "url": os.environ.get("VOLTRA_BOT1_URL", "http://127.0.0.1:8080"),
         "trades_per_week": 72 / 52.1,
         "profit_usd_per_week": 0.0319 * 5000 / 52.1,
     },
     {
-        "name": "solsignal-cross (SolCross)",
-        "url": os.environ.get("SOLSIGNAL_BOT2_URL", "http://127.0.0.1:8081"),
+        "name": "voltra-cross (SolCross)",
+        "url": os.environ.get("VOLTRA_BOT2_URL", "http://127.0.0.1:8081"),
         "trades_per_week": 9 / 52.1,
         "profit_usd_per_week": 0.0014 * 5000 / 52.1,
     },
@@ -135,7 +135,7 @@ def main() -> int:
     body = "\n".join(bot_section(bot["url"], bot, user, password)
                      for bot in BOTS)
     report = (
-        f"# SolSignal weekly report — {today:%Y-%m-%d}\n\n"
+        f"# Voltra weekly report — {today:%Y-%m-%d}\n\n"
         f"{body}\n"
         "---\n"
         "Gate reminder: live capital requires OOS PF >1.3, backtest DD <15%, "

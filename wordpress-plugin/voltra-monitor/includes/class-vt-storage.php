@@ -9,7 +9,7 @@
  * WordPress pattern; each is annotated. Table names cannot be bound as
  * placeholders, so they are interpolated from $wpdb->prefix (trusted).
  *
- * @package SolSignal_Monitor
+ * @package Voltra_Monitor
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -19,14 +19,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Custom-table storage for collected bot snapshots.
  */
-class SS_Storage {
+class VT_Storage {
 
 	/**
 	 * Unprefixed table name.
 	 *
 	 * @var string
 	 */
-	const TABLE = 'solsignal_snapshots';
+	const TABLE = 'voltra_snapshots';
 
 	/**
 	 * Full, prefixed table name.
@@ -71,7 +71,7 @@ class SS_Storage {
 	 * Record one bot snapshot.
 	 *
 	 * @param string $bot     Bot name.
-	 * @param array  $summary Summary from SS_Api_Client::summary().
+	 * @param array  $summary Summary from VT_Api_Client::summary().
 	 */
 	public static function record( $bot, $summary ) {
 		global $wpdb;

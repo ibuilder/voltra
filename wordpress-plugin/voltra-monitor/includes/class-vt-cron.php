@@ -8,7 +8,7 @@
  * site, disable it (define('DISABLE_WP_CRON', true) in wp-config.php) and add a
  * real system cron: * /15 * * * * curl -s https://site/wp-cron.php?doing_wp_cron
  *
- * @package SolSignal_Monitor
+ * @package Voltra_Monitor
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -16,35 +16,35 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * WP-Cron poller and alerting for the SolSignal bots.
+ * WP-Cron poller and alerting for the Voltra bots.
  */
-class SS_Cron {
+class VT_Cron {
 
 	/**
 	 * Transient key for the cached snapshot.
 	 *
 	 * @var string
 	 */
-	const SNAPSHOT = 'solsignal_mon_snapshot';
+	const SNAPSHOT = 'voltra_mon_snapshot';
 
 	/**
 	 * Option key tracking which bots already tripped.
 	 *
 	 * @var string
 	 */
-	const TRIP_FLAG = 'solsignal_mon_tripped';
+	const TRIP_FLAG = 'voltra_mon_tripped';
 
 	/**
 	 * Singleton instance.
 	 *
-	 * @var SS_Cron|null
+	 * @var VT_Cron|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Get the singleton instance.
 	 *
-	 * @return SS_Cron
+	 * @return VT_Cron
 	 */
 	public static function instance() {
 		if ( null === self::$instance ) {
@@ -57,28 +57,28 @@ class SS_Cron {
 	 * Hook the cron action.
 	 */
 	private function __construct() {
-		add_action( SOLSIGNAL_MON_CRON_HOOK, array( $this, 'poll' ) );
+		add_action( VOLTRA_MON_CRON_HOOK, array( $this, 'poll' ) );
 	}
 
 	/**
 	 * Poll all bots, store a snapshot, and alert on the tripwire.
 	 */
 	public function poll() {
-		$s        = SS_Settings::get();
-		$pass     = SS_Settings::password();
+		$s        = VT_Settings::get();
+		$pass     = VT_Settings::password();
 		$snapshot = array(
 			'time' => time(),
 			'bots' => array(),
 		);
 
-		foreach ( SS_Settings::bots() as $bot ) {
-			$client             = new SS_Api_Client( $bot['url'], $s['username'], $pass );
+		foreach ( VT_Settings::bots() as $bot ) {
+			$client             = new VT_Api_Client( $bot['url'], $s['username'], $pass );
 			$summary            = $client->summary();
 			$summary['name']    = $bot['name'];
 			$snapshot['bots'][] = $summary;
 
 			// Persist this reading to the time-series table (data collection).
-			SS_Storage::record( $bot['name'], $summary );
+			VT_Storage::record( $bot['name'], $summary );
 
 			// Tripwire: live-mode bot.
 			if ( isset( $summary['dry_run'] ) && false === $summary['dry_run'] ) {
@@ -91,7 +91,7 @@ class SS_Cron {
 		}
 
 		set_transient( self::SNAPSHOT, $snapshot, HOUR_IN_SECONDS );
-		SS_Storage::prune(); // bound table growth (default 1 year retention)
+		VT_Storage::prune(); // bound table growth (default 1 year retention)
 	}
 
 	/**
@@ -111,9 +111,9 @@ class SS_Cron {
 		if ( $email ) {
 			wp_mail(
 				$email,
-				'[SolSignal CRITICAL] Bot is LIVE — dry_run=false',
+				'[Voltra CRITICAL] Bot is LIVE — dry_run=false',
 				sprintf(
-					"Bot '%s' reports dry_run=false.\n\nGoing live is a human-only change. If you did not authorize this, treat it as a security incident: stop the bot and rotate credentials.\n\n-- SolSignal Monitor",
+					"Bot '%s' reports dry_run=false.\n\nGoing live is a human-only change. If you did not authorize this, treat it as a security incident: stop the bot and rotate credentials.\n\n-- Voltra Monitor",
 					$bot
 				)
 			);
@@ -128,7 +128,7 @@ class SS_Cron {
 	 * @param string $email Alert recipient.
 	 */
 	private function maybe_alert_unreachable( $bot, $error, $email ) {
-		$key = 'ss_mon_unreach_' . md5( $bot );
+		$key = 'voltra_mon_unreach_' . md5( $bot );
 		if ( get_transient( $key ) ) {
 			return;
 		}
@@ -136,8 +136,8 @@ class SS_Cron {
 		if ( $email ) {
 			wp_mail(
 				$email,
-				'[SolSignal WARN] Bot unreachable: ' . $bot,
-				sprintf( "Bot '%s' is unreachable: %s\n\n-- SolSignal Monitor", $bot, $error )
+				'[Voltra WARN] Bot unreachable: ' . $bot,
+				sprintf( "Bot '%s' is unreachable: %s\n\n-- Voltra Monitor", $bot, $error )
 			);
 		}
 	}

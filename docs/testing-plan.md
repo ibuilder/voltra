@@ -1,4 +1,4 @@
-# SolSignal testing-phase plan (dry-run → go/no-go)
+# Voltra testing-phase plan (dry-run → go/no-go)
 
 Start: 2026-07-14 (whitelist finalized to BTC/ETH/SOL/XRP).
 Purpose: decide, with evidence, whether TrendBreak's thin edge is real enough
@@ -8,8 +8,8 @@ to risk real money — or not.
 
 | Bot | Port | Strategy | Whitelist | Role |
 |---|---|---|---|---|
-| solsignal-dry | 8080 | TrendBreak (tuned) | BTC/ETH/SOL/XRP | primary candidate |
-| solsignal-cross | 8081 | SolCross lead-lag | SOL | tracked experiment |
+| voltra-dry | 8080 | TrendBreak (tuned) | BTC/ETH/SOL/XRP | primary candidate |
+| voltra-cross | 8081 | SolCross lead-lag | SOL | tracked experiment |
 
 Both dry-run, $5,000 paper each. Reporter container writes
 `docs/reports/report-<date>.md` daily. Dashboards: 8080 (FreqUI), 8899 (custom).
