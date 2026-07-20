@@ -155,7 +155,10 @@ class VT_Dashboard {
 		$controls = ! empty( VT_Settings::get()['enable_controls'] );
 		?>
 		<div class="wrap">
-			<h1>Voltra Monitor</h1>
+			<h1>
+				<img src="<?php echo esc_url( plugins_url( 'assets/voltra-logo.png', VOLTRA_MON_DIR . 'voltra-monitor.php' ) ); ?>" alt="Voltra" style="height:30px;vertical-align:middle">
+				<span class="screen-reader-text">Voltra Monitor</span>
+			</h1>
 			<p class="description">
 				<?php esc_html_e( 'Read-only monitor for your Freqtrade bots. This plugin never enables live trading.', 'voltra-monitor' ); ?>
 			</p>
