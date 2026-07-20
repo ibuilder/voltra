@@ -49,6 +49,20 @@
 		reverse_proxy freqtrade:8080
 	}
 
+	# Per-bot REST API routes for the WordPress monitor (and any external
+	# monitor). Each strips its prefix and proxies to that bot's :8080, so the
+	# bot API lands at https://<domain>/bot/<name>/api/v1/... The bots keep
+	# their own JWT auth. Set the plugin's Bots list to these URLs.
+	handle_path /bot/dry/* {
+		reverse_proxy freqtrade:8080
+	}
+	handle_path /bot/cross/* {
+		reverse_proxy freqtrade-cross:8080
+	}
+	handle_path /bot/webhook/* {
+		reverse_proxy freqtrade-webhook:8080
+	}
+
 	# TradingView webhook relay — auth is the relay's shared secret, so no
 	# extra gate here; TLS + headers still apply. Point TradingView at
 	#   https://<domain>/webhook/webhook
