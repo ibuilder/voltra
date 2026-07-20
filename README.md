@@ -1,9 +1,37 @@
-# Voltra
+<p align="center">
+  <img src="brand/logo/voltra-logo-tagline.png" alt="Voltra — Crypto Trading Engine" width="420">
+</p>
 
-Freqtrade crypto trading bot. Kraken (primary) / Coinbase Advanced Trade (backup),
-pairs BTC/USD · ETH/USD · SOL/USD plus screener output.
+<p align="center">
+  <a href="https://github.com/ibuilder/voltra/actions"><img src="https://img.shields.io/badge/tests-33%20passing-brightgreen" alt="tests"></a>
+  <img src="https://img.shields.io/badge/mode-dry--run-0ea5e9" alt="dry-run">
+  <img src="https://img.shields.io/badge/license-MIT-6366f1" alt="MIT">
+  <img src="https://img.shields.io/badge/status-experimental-7c3aed" alt="experimental">
+</p>
 
-**Mode discipline: Backtest → Dry-run (30+ days) → Small live capital. Never skip a stage.**
+<p align="center">
+  <b>An automated crypto trading engine built the honest way:</b><br>
+  backtest → walk-forward → Monte Carlo → 30-day dry-run → small live capital. Never skip a stage.
+</p>
+
+<p align="center">
+  <a href="https://ibuilder.github.io/voltra/">Website</a> ·
+  <a href="ROADMAP.md">Roadmap</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="DISCLAIMER.md">Disclaimer</a> ·
+  <a href="docs/enterprise-readiness.md">Architecture</a>
+</p>
+
+---
+
+Freqtrade-based crypto trading bot. Kraken (primary) / Coinbase Advanced Trade
+(backup), pairs BTC/USD · ETH/USD · SOL/USD plus screener output.
+
+> **Honest status:** this is experimental software in the validation phase. The
+> current strategy's edge is **not yet statistically significant** (Monte Carlo
+> P(edge>0) = 81%, below the 95% bar) — see
+> [the Monte Carlo report](docs/montecarlo-report-2026-07-16.md). It runs in
+> **paper-trading (dry-run) only**. Not financial advice; you can lose money.
 
 ## Desktop app (run it on its own)
 

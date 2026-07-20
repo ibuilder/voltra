@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 120" width="480" height="120" role="img" aria-label="Voltra">
+  <defs>
+    <linearGradient id="voltraGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2DE2E6"/>
+      <stop offset="55%" stop-color="#4F46E5"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Mark: bolt as a breakout price move -->
+  <g transform="translate(12 12) scale(0.9)">
+    <!-- resistance level being broken -->
+    <line x1="15" y1="53" x2="87" y2="53" stroke="#4F46E5" stroke-width="3"
+          stroke-linecap="round" stroke-dasharray="2 7" opacity="0.30"/>
+    <!-- bolt -->
+    <path d="M58 8 L30 54 L47 54 L40 92 L72 42 L55 42 L64 8 Z" fill="url(#voltraGrad)"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="150" y="77" font-family="'Space Grotesk','Eurostile','Segoe UI',system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif"
+        font-size="56" font-weight="700" letter-spacing="4.5" fill="#0B1220">VOLTRA</text>
+</svg>

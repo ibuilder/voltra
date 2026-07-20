@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voltra — Crypto Trading Engine</title>
+<meta name="description" content="Voltra: an automated crypto trading engine built the honest way — backtest, walk-forward, Monte Carlo validation, 30-day dry-run. Experimental; not financial advice.">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="icon-512.png" sizes="512x512">
+<link rel="apple-touch-icon" href="apple-touch-icon-180.png">
+<meta property="og:title" content="Voltra — Crypto Trading Engine">
+<meta property="og:description" content="Automated crypto trading, validated honestly. Backtest → Monte Carlo → dry-run.">
+<meta property="og:image" content="assets/voltra-icon.png">
+<style>
+  :root{
+    --ink:#0B1220; --ink2:#111a2e; --line:#1e2a44;
+    --cyan:#2DE2E6; --indigo:#4F46E5; --violet:#7C3AED;
+    --text:#e6edf6; --muted:#93a1b5;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ink);color:var(--text);
+    font:16px/1.6 "Space Grotesk",system-ui,-apple-system,Segoe UI,sans-serif}
+  a{color:var(--cyan);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:960px;margin:0 auto;padding:0 20px}
+  header{padding:72px 0 40px;text-align:center}
+  header img{width:min(360px,80vw)}
+  .tag{color:var(--muted);font-size:18px;margin-top:8px}
+  .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:28px}
+  .btn{padding:11px 20px;border-radius:10px;font-weight:600;border:1px solid var(--line)}
+  .btn.primary{background:linear-gradient(135deg,var(--indigo),var(--violet));border:0;color:#fff}
+  .btn.ghost{background:#0f172a;color:var(--text)}
+  .note{max-width:720px;margin:26px auto 0;padding:14px 18px;border:1px solid var(--line);
+    border-radius:12px;background:#0d1526;color:var(--muted);font-size:14px}
+  .note b{color:var(--cyan)}
+  section{padding:44px 0;border-top:1px solid var(--line)}
+  h2{font-size:24px;margin:0 0 20px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+  .card{background:var(--ink2);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .card h3{margin:0 0 6px;font-size:16px}
+  .card p{margin:0;color:var(--muted);font-size:14px}
+  .pipe{display:flex;gap:8px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:14px}
+  .pill{padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:#0d1526}
+  .pill.on{border-color:var(--cyan);color:var(--cyan)}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left}
+  th{color:var(--muted);font-weight:600}
+  .bad{color:#fb7185}.ok{color:#34d399}.wait{color:#fbbf24}
+  footer{padding:40px 0 60px;color:var(--muted);font-size:13px;text-align:center;border-top:1px solid var(--line)}
+  code{background:#0d1526;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:13px}
+</style>
+</head>
+<body>
+<header class="wrap">
+  <img src="assets/voltra-logo-inverted.png" alt="Voltra">
+  <div class="tag">Automated crypto trading, validated honestly.</div>
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/ibuilder/voltra">View on GitHub</a>
+    <a class="btn ghost" href="https://github.com/ibuilder/voltra/releases">Downloads</a>
+    <a class="btn ghost" href="#roadmap">Roadmap</a>
+  </div>
+  <div class="note">
+    <b>Experimental — paper trading only.</b> Voltra is in its validation phase. The
+    current strategy's edge is <b>not yet statistically significant</b> (Monte Carlo
+    P(edge&gt;0) = 81%, below the 95% bar). It trades simulated money by default.
+    Nothing here is financial advice; crypto trading can lose you money.
+  </div>
+</header>
+
+<section class="wrap">
+  <h2>The process is the edge</h2>
+  <div class="pipe">
+    <span class="pill">Backtest (2020–2026)</span>→
+    <span class="pill">Walk-forward</span>→
+    <span class="pill">Monte Carlo</span>→
+    <span class="pill">30-day dry-run</span>→
+    <span class="pill">Small live capital</span>
+  </div>
+  <p style="color:var(--muted);margin-top:16px">Every stage is a gate. No stage is skipped.
+  Fees (0.16% round-trip) and slippage (0.05%) are modeled in every backtest; results are
+  validated out-of-sample and stress-tested across bull, bear, and chop regimes.</p>
+</section>
+
+<section class="wrap">
+  <h2>What's inside</h2>
+  <div class="grid">
+    <div class="card"><h3>⚡ Strategies</h3><p>TrendBreak (structure breakouts) and a BTC/ETH→SOL cross-asset lead-lag model, with 1% ATR risk sizing, on-exchange stops, and drawdown circuit breakers.</p></div>
+    <div class="card"><h3>🔬 Honest validation</h3><p>Hyperopt on training data only, walk-forward out-of-sample, and a Monte Carlo edge-significance gate. Rejected ideas are documented, not hidden.</p></div>
+    <div class="card"><h3>🛡️ Enterprise ops</h3><p>Caddy TLS ingress, health monitoring with a live-mode tripwire, automated backups + tested restore, rate limiting, and an incident runbook.</p></div>
+    <div class="card"><h3>🖥️ Desktop controller</h3><p>A Tauri tray app that runs the whole Docker stack on its own with one click and a start-at-login toggle. Signed auto-updates.</p></div>
+    <div class="card"><h3>🔌 TradingView bridge</h3><p>An isolated experimental bot that can trade external Pine v6 webhook signals — still wrapped in Voltra's risk rules.</p></div>
+    <div class="card"><h3>📊 WordPress monitor</h3><p>A standards-clean plugin that collects time-series bot data, shows a dashboard, and exports CSV for analysis.</p></div>
+  </div>
+</section>
+
+<section class="wrap">
+  <h2>Live-gate scorecard <span style="color:var(--muted);font-weight:400;font-size:14px">(what stands between here and real money)</span></h2>
+  <table>
+    <tr><th>Gate</th><th>Threshold</th><th>Status</th></tr>
+    <tr><td>Out-of-sample profit factor</td><td>&gt; 1.3</td><td class="bad">✗ ~1.1–1.2</td></tr>
+    <tr><td>Monte Carlo edge significance</td><td>P(edge&gt;0) ≥ 95%</td><td class="bad">✗ 81%</td></tr>
+    <tr><td>Backtest max drawdown</td><td>&lt; 15%</td><td class="bad">✗ MC median 16%</td></tr>
+    <tr><td>30-day dry-run vs backtest</td><td>within ~20%</td><td class="wait">⏳ pending</td></tr>
+  </table>
+  <p style="color:var(--muted);margin-top:14px">Voltra publishes its own failing gates. The fix for a thin edge is
+  <em>more evidence</em> (a running dry-run) or a genuinely stronger signal — not curve-fitting. That honesty is the point.</p>
+</section>
+
+<section class="wrap" id="roadmap">
+  <h2>Roadmap</h2>
+  <div class="grid">
+    <div class="card"><h3>Now</h3><p>30-day unbroken dry-run on a free VM; feed real fills into the Monte Carlo to move the significance number.</p></div>
+    <div class="card"><h3>Next</h3><p>Monthly re-hyperopt with walk-forward; a market-regime filter; more validated pairs to grow the sample.</p></div>
+    <div class="card"><h3>Later</h3><p>FreqAI as a signal <em>filter</em>; additional strategy families (funding-rate, mean-reversion); hosted multi-bot product.</p></div>
+  </div>
+  <p style="margin-top:16px"><a href="https://github.com/ibuilder/voltra/blob/main/ROADMAP.md">Full roadmap →</a></p>
+</section>
+
+<footer>
+  <p>Voltra · MIT licensed · <a href="https://github.com/ibuilder/voltra/blob/main/DISCLAIMER.md">Disclaimer</a> ·
+  Not financial advice. Most retail algo traders lose money.</p>
+</footer>
+</body>
+</html>

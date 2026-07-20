@@ -7,6 +7,15 @@ milestones (pre-1.0, no semantic-version guarantees yet).
 ## [Unreleased]
 
 ### Added
+- **Official Voltra branding** — logo/favicon kit, README banner, GitHub Pages
+  site (docs/index.html), ROADMAP. Tauri app icons replaced with branded set.
+
+### Changed
+- **Rebranded SolSignal → Voltra** across the entire project (code, container
+  names, plugin, env vars, docs). Public repo: github.com/ibuilder/voltra.
+
+
+### Added
 - **Desktop controller (Tauri v2)** — a lightweight system-tray app that
   starts/stops the Docker stack, shows live service status, opens the
   dashboard, and self-enables run-on-login. No manual Startup-folder step.
