@@ -44,15 +44,21 @@ never enables live trading. Build/release and GitHub setup:
 **Important:** read [DISCLAIMER.md](DISCLAIMER.md) — experimental software,
 trading carries real risk of loss, not financial advice, default is paper only.
 
-## Host it 24/7 for free
+## Host it 24/7
 
-To run the stack always-on and reach it from anywhere, deploy to a free VM:
-[docs/deploy-oracle-free.md](docs/deploy-oracle-free.md) (Oracle Cloud
-Always-Free ARM, $0/mo). Production overlay `docker-compose.prod.yml` exposes
-only Caddy (TLS) publicly; `scripts/deploy.sh` + `deploy/voltra.service`
-make it turnkey and boot-persistent. At small capital, free hosting is the
-right call — a paid VPS would cost more than the strategy is expected to earn
-(see the cost analysis in that guide).
+Run the stack always-on and reach it from anywhere. Same repo + `.env` +
+`./scripts/deploy.sh` on either host — you're never locked in:
+
+- **[Oracle Cloud Always-Free](docs/deploy-oracle-free.md)** — $0/mo, ARM.
+  Cheapest; fine for the **dry-run** phase. Caveat: Oracle can reclaim idle
+  instances and the free shape can be capacity-constrained.
+- **[Hetzner Cloud](docs/deploy-hetzner.md)** — ~€4/mo, 99.9% SLA. The
+  **reliable** choice once real money is involved; no reclamation games.
+
+The production overlay `docker-compose.prod.yml` exposes only Caddy (TLS)
+publicly; `deploy/voltra.service` makes it boot-persistent. At small capital,
+free hosting is the right call — a paid VPS would cost more than the strategy is
+expected to earn (see the cost analysis in the Oracle guide).
 
 ## Setup (Docker directly)
 
