@@ -36,3 +36,7 @@ user_data/exports/
 
 # Build artifacts (plugin zips, etc.)
 dist/
+
+# Kronos research run artifacts (reproducible)
+research/kronos/*.csv
+research/kronos/*.log
