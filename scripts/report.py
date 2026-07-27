@@ -1,12 +1,13 @@
-"""Weekly dry-run performance report (Phase 4).
+"""Dry-run divergence report (Phase 4).
 
-Reads every bot's REST API, summarizes the week, and — the part that gates
-Phase 5 — compares cumulative dry-run results against pro-rata backtest
-expectations from the walk-forward report. Divergence beyond ~20% means the
-backtest doesn't describe reality and nothing goes live.
+Runs on a schedule (daily by the reporter container). Reads every bot's REST
+API and — the part that gates Phase 5 — compares cumulative dry-run results
+against pro-rata backtest expectations from the walk-forward report. A
+divergence beyond ~20% (once ~30 days of data exist) means the backtest doesn't
+describe reality and nothing goes live.
 
 Usage:
-    python scripts/report.py            # writes docs/reports/weekly-<date>.md
+    python scripts/report.py            # writes docs/reports/report-<date>.md
     python scripts/report.py --stdout   # print only
 """
 
@@ -72,27 +73,35 @@ def login(base: str, user: str, password: str) -> str:
     return r.json()["access_token"]
 
 
-def divergence(actual: float, expected: float) -> str:
+def divergence(actual: float, expected: float, established: bool = True) -> str:
     if expected == 0:
         return "n/a"
     d = (actual - expected) / abs(expected)
+    if not established:
+        # Too small a sample to flag; the footer says judge at the 30-day mark.
+        return f"{d:+.0%} (early — small sample)"
     flag = "OK" if abs(d) <= 0.20 else "DIVERGENT"
     return f"{d:+.0%} ({flag})"
 
 
 def bot_section(base: str, exp: dict, user: str, password: str) -> str:
+    now = datetime.now(timezone.utc)
+    # Span the whole dry-run so early trades aren't hidden by a fixed short
+    # window; cap at 30 days so the table stays readable.
+    days_window = min(max((now - DRY_RUN_START).days + 1, 8), 30)
     try:
         token = login(base, user, password)
         cfg = api(base, "/show_config", token)
         profit = api(base, "/profit", token)
         balance = api(base, "/balance", token)
         status = api(base, "/status", token)
-        daily = api(base, "/daily?timescale=8", token)
+        daily = api(base, f"/daily?timescale={days_window}", token)
     except Exception as err:
         return f"## {exp['name']} — UNREACHABLE\n\n`{base}`: {err}\n"
 
-    weeks = max((datetime.now(timezone.utc) - DRY_RUN_START).total_seconds()
-                / (7 * 86400), 0.01)
+    weeks = max((now - DRY_RUN_START).total_seconds() / (7 * 86400), 0.01)
+    # The ±20% flag only means something once ~30 days of data exist.
+    established = weeks >= 4.0
     closed = profit.get("closed_trade_count", 0)
     pnl = profit.get("profit_closed_coin", 0.0)
     wins, losses = profit.get("winning_trades", 0), profit.get("losing_trades", 0)
@@ -114,10 +123,10 @@ strategy: {cfg.get('strategy')} · freqtrade {cfg.get('version')}
 
 | Metric | Actual | Expected (pro-rata) | Divergence |
 |---|---|---|---|
-| Trades | {closed} | {exp['trades_per_week'] * weeks:.1f} | {divergence(closed, exp['trades_per_week'] * weeks)} |
-| PnL (USD) | {pnl:+.2f} | {exp['profit_usd_per_week'] * weeks:+.2f} | {divergence(pnl, exp['profit_usd_per_week'] * weeks)} |
+| Trades | {closed} | {exp['trades_per_week'] * weeks:.1f} | {divergence(closed, exp['trades_per_week'] * weeks, established)} |
+| PnL (USD) | {pnl:+.2f} | {exp['profit_usd_per_week'] * weeks:+.2f} | {divergence(pnl, exp['profit_usd_per_week'] * weeks, established)} |
 
-Last 8 days:
+Last {days_window} days (covers the whole dry-run):
 
 | Date | PnL (USD) | Trades |
 |---|---|---|
@@ -135,7 +144,7 @@ def main() -> int:
     body = "\n".join(bot_section(bot["url"], bot, user, password)
                      for bot in BOTS)
     report = (
-        f"# Voltra weekly report — {today:%Y-%m-%d}\n\n"
+        f"# Voltra divergence report — {today:%Y-%m-%d}\n\n"
         f"{body}\n"
         "---\n"
         "Gate reminder: live capital requires OOS PF >1.3, backtest DD <15%, "
