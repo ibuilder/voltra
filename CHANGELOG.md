@@ -14,16 +14,33 @@ milestones (pre-1.0, no semantic-version guarantees yet).
 - **Rebranded SolSignal → Voltra** across the entire project (code, container
   names, plugin, env vars, docs). Public repo: github.com/ibuilder/voltra.
 
+## [app-v0.1.0] — 2026-07-27 · First desktop release
+
+First installable, auto-updating Windows build of the Voltra Controller:
+<https://github.com/ibuilder/voltra/releases/tag/app-v0.1.0>
 
 ### Added
 - **Desktop controller (Tauri v2)** — a lightweight system-tray app that
   starts/stops the Docker stack, shows live service status, opens the
   dashboard, and self-enables run-on-login. No manual Startup-folder step.
+- **Kraken API key entry** — paste key/secret, stored **OS-encrypted** in
+  Windows Credential Manager (never plaintext); an "Open Kraken API page" button
+  deep-links to Kraken's key creation (there is no OAuth for this). Saving a key
+  never enables live trading — `dry_run` stays a human-only change.
 - **Signed autoupdater** — GitHub Releases + `latest.json`; updates are
   signature-verified and prompt before installing (never silent).
 - **Release CI** (`.github/workflows/release.yml`) builds the Windows
   `.exe`/`.msi` via `tauri-action` on `app-v*` tags.
 - LICENSE (MIT), DISCLAIMER, CHANGELOG.
+
+### Fixed
+- Updater manifest (`latest.json`) wasn't being produced — enabled
+  `bundle.createUpdaterArtifacts` (a Tauri v2 requirement), so the signed
+  updater assets upload and auto-update works.
+- Auto-update now targets the **NSIS** package (`updaterJsonPreferNsis`) to
+  match the per-user install and avoid a UAC prompt on update.
+- Autostart launcher pointed at a nonexistent `C:\Server\voltra`; corrected to
+  the real checkout so login persistence actually works.
 
 ## [2026-07-15] Enterprise hardening + testing
 
