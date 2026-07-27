@@ -18,7 +18,51 @@ USB token) or via a **cloud signing service** — plain exportable `.pfx` OV cer
 are effectively gone. A physical token can't be plugged into GitHub's cloud
 runners, so for CI you want a **cloud** signing service.
 
-## Recommended: Azure Trusted Signing (~$10/month)
+## Recommended (free): SignPath Foundation
+
+[SignPath Foundation](https://signpath.io/solutions/open-source-community) gives
+qualifying open-source projects a **free** OV code-signing certificate. The key
+is generated and held on their HSM — you never touch it. Voltra qualifies on the
+basics: public repo, MIT license, released, functionality documented.
+
+### 1. Apply (only you can — it's tied to your identity)
+
+- Apply at <https://signpath.io/solutions/open-source-community>; check
+  eligibility at <https://www.ossperks.com/programs/signpath/check>.
+- Reviewed by a human; approval takes a few days to a few weeks. A money-adjacent
+  project may get extra scrutiny — describe it honestly (draft below).
+
+Ready-to-submit description:
+
+> **Voltra** (MIT, github.com/ibuilder/voltra) is an open-source Freqtrade-based
+> crypto trading toolkit. The artifact to sign is **Voltra Controller**, a small
+> Tauri desktop app that starts/stops the project's Docker stack, shows status,
+> and stores a user-provided exchange API key in the OS keychain. It ships in
+> **dry-run** (simulated trades) and never enables live trading on its own.
+> Functionality is documented at ibuilder.github.io/voltra and in the repo README
+> / docs/desktop-app.md. Releases are built by GitHub Actions from tagged commits.
+
+### 2. CI integration (I'll wire this on approval)
+
+SignPath signs **after** the build, but our updater signature is computed **during**
+the build — so signing the installer afterward would break auto-update. On approval
+the release job is reordered to: build unsigned → submit installers to SignPath →
+retrieve signed installers → **recompute** the Tauri updater signatures on the
+signed files → build `latest.json` → publish. (This replaces the single
+`tauri-action` publish step; the minisign updater key is unchanged, so update
+continuity is preserved.) SignPath provides a GitHub Action + a project/signing-policy
+slug that only exist post-approval — that's why this step waits for you.
+
+### 3. Verify (first signed build)
+
+```powershell
+Get-AuthenticodeSignature .\Voltra.Controller_x.y.z_x64-setup.exe | Format-List Status, SignerCertificate
+# Status: Valid
+```
+
+---
+
+## Paid alternative: Azure Trusted Signing (~$10/month)
 
 Cheapest, CI-native, no hardware token. Microsoft-run.
 
