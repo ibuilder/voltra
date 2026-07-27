@@ -5,95 +5,128 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Voltra — Cockpit</title>
 <link rel="icon" href="favicon.ico" sizes="any">
-<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
-  body { background: #0b1220; }
-  .card { background: #111a2e; border: 1px solid #1e2a44; }
-  .btn { transition: filter .15s; }
-  .btn:hover { filter: brightness(1.12); }
+  :root{
+    --ink:#0B1220; --ink2:#111a2e; --ink3:#0d1526; --line:#1e2a44;
+    --cyan:#2DE2E6; --indigo:#4F46E5; --violet:#7C3AED;
+    --text:#e6edf6; --muted:#93a1b5;
+    --ok:#34d399; --bad:#fb7185; --wait:#fbbf24;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ink);color:var(--text);
+    font:16px/1.6 "Space Grotesk",system-ui,-apple-system,Segoe UI,sans-serif}
+  .wrap{max-width:920px;margin:0 auto;padding:0 20px}
+  a{color:var(--cyan);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .card{background:var(--ink2);border:1px solid var(--line);border-radius:14px}
+  .btn{padding:10px 18px;border-radius:10px;font-weight:600;font-size:14px;font-family:inherit;
+    border:1px solid var(--line);background:var(--ink3);color:var(--text);cursor:pointer;transition:filter .15s}
+  .btn:hover{filter:brightness(1.18)}
+  .btn.primary{background:linear-gradient(135deg,var(--indigo),var(--violet));border:0;color:#fff}
+  .btn.go{background:linear-gradient(135deg,#0e7490,var(--cyan));border:0;color:#04121a}
+  .btn.stop{background:#2a121a;border-color:#7f1d2e;color:var(--bad)}
+  input,select{font-family:inherit;width:100%;padding:10px 12px;border-radius:10px;
+    background:var(--ink3);border:1px solid var(--line);color:var(--text);font-size:14px}
+  input:focus,select:focus{outline:none;border-color:var(--cyan)}
+  label{display:block;margin-top:14px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .badge{padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700}
+  .pill{padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:var(--ink3);font-size:13px;color:var(--muted)}
+  .muted{color:var(--muted)}
+  .ok{color:var(--ok)} .bad{color:var(--bad)} .wait{color:var(--wait)}
+  .hidden{display:none}
+  .center{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+  .grid-kpi{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  @media(min-width:720px){.grid-kpi{grid-template-columns:repeat(4,1fr)}}
+  .grid-2{display:grid;gap:16px}
+  @media(min-width:900px){.grid-2{grid-template-columns:2fr 1fr}}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+    padding:10px 18px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:0 8px 30px #0008}
 </style>
 </head>
-<body class="min-h-screen text-slate-200 font-sans">
+<body>
 
 <!-- Login -->
-<div id="login-view" class="flex min-h-screen items-center justify-center p-4">
-  <form id="login-form" class="card w-full max-w-sm rounded-2xl p-8 shadow-xl">
-    <img src="voltra-logo.png" alt="Voltra" style="height:30px">
-    <p class="mt-2 text-sm text-slate-400">Connect to your bot</p>
-    <label class="mt-6 block text-xs uppercase tracking-wide text-slate-400">Mode / bot</label>
-    <select id="in-api" class="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none">
+<div id="login-view" class="center">
+  <form id="login-form" class="card" style="width:100%;max-width:380px;padding:30px">
+    <img src="voltra-logo-inverted.png" alt="Voltra" style="width:150px">
+    <p class="muted" style="margin:8px 0 0;font-size:14px">Connect to your bot</p>
+    <label>Mode / bot</label>
+    <select id="in-api">
       <option value="http://127.0.0.1:8080">Aggressive — TrendBreak (BTC/ETH/SOL/XRP)</option>
       <option value="http://127.0.0.1:8081">Lead-lag — SolCross (BTC/ETH → SOL)</option>
       <option value="http://127.0.0.1:8082">Experimental — TradingView webhook</option>
     </select>
-    <label class="mt-4 block text-xs uppercase tracking-wide text-slate-400">Username</label>
-    <input id="in-user" value="voltra" autocomplete="username" class="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none">
-    <label class="mt-4 block text-xs uppercase tracking-wide text-slate-400">Password</label>
-    <input id="in-pass" type="password" autocomplete="current-password" class="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none">
-    <button class="btn mt-6 w-full rounded-lg bg-amber-400 py-2 font-semibold text-slate-900">Connect</button>
-    <p id="login-error" class="mt-3 hidden text-sm text-rose-400"></p>
+    <label>Username</label>
+    <input id="in-user" value="voltra" autocomplete="username">
+    <label>Password</label>
+    <input id="in-pass" type="password" autocomplete="current-password">
+    <button class="btn primary" style="width:100%;margin-top:22px">Connect</button>
+    <p id="login-error" class="bad hidden" style="margin-top:12px;font-size:14px"></p>
   </form>
 </div>
 
 <!-- Cockpit -->
-<div id="dash-view" class="hidden mx-auto max-w-5xl p-4 sm:p-6">
-  <header class="flex flex-wrap items-center gap-3">
-    <img src="voltra-logo.png" alt="Voltra" style="height:26px">
-    <select id="mode-switch" onchange="switchBot(this.value)" class="rounded-lg bg-slate-900 border border-slate-700 px-2 py-1 text-sm focus:border-amber-400 focus:outline-none">
+<div id="dash-view" class="hidden wrap" style="padding-top:24px;padding-bottom:40px">
+  <header style="display:flex;flex-wrap:wrap;align-items:center;gap:12px">
+    <img src="voltra-logo-inverted.png" alt="Voltra" style="height:30px">
+    <select id="mode-switch" onchange="switchBot(this.value)" style="width:auto">
       <option value="http://127.0.0.1:8080">Aggressive — TrendBreak</option>
       <option value="http://127.0.0.1:8081">Lead-lag — SolCross</option>
       <option value="http://127.0.0.1:8082">Experimental — webhook</option>
     </select>
-    <span id="badge-mode" class="rounded-full px-3 py-1 text-xs font-bold"></span>
-    <div class="ml-auto flex items-center gap-3">
-      <span id="last-update" class="text-xs text-slate-500"></span>
-      <a id="frequi-link" target="_blank" class="text-xs text-slate-500 underline hover:text-amber-400">advanced view ↗</a>
+    <span id="badge-mode" class="badge"></span>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+      <span id="last-update" class="muted" style="font-size:12px"></span>
+      <a id="frequi-link" target="_blank" style="font-size:12px">advanced view ↗</a>
     </div>
   </header>
 
-  <p id="dash-error" class="mt-4 hidden rounded-lg border border-rose-800 bg-rose-950/60 p-3 text-sm text-rose-300"></p>
+  <p id="dash-error" class="hidden" style="margin-top:16px;border:1px solid #7f1d2e;background:#2a121a;border-radius:12px;padding:12px;color:var(--bad);font-size:14px"></p>
 
-  <!-- The one thing you look at: plain-English status + controls -->
-  <section class="card mt-5 rounded-2xl p-6">
-    <p id="status-line" class="text-lg font-semibold text-white">—</p>
-    <p id="money-line" class="mt-1 text-sm text-slate-300">—</p>
-    <p id="bench-line" class="mt-3 rounded-lg bg-slate-900/60 px-3 py-2 text-sm">—</p>
-    <div class="mt-5 flex flex-wrap gap-3">
-      <button onclick="command('start')" class="btn rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-900">▶ Start</button>
-      <button onclick="command('stop')" class="btn rounded-lg bg-rose-500 px-4 py-2 text-sm font-semibold text-slate-900">■ Stop</button>
-      <button onclick="command('reload_config')" class="btn rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold">↻ Reload</button>
-      <button onclick="refresh()" class="btn ml-auto rounded-lg border border-slate-700 px-4 py-2 text-sm">Refresh now</button>
+  <!-- The one thing you look at -->
+  <section class="card" style="margin-top:20px;padding:26px">
+    <p id="status-line" style="margin:0;font-size:19px;font-weight:600">—</p>
+    <p id="money-line" class="muted" style="margin:6px 0 0;font-size:14px">—</p>
+    <p id="bench-line" style="margin-top:16px;background:var(--ink3);border:1px solid var(--line);border-radius:10px;padding:11px 14px;font-size:14px">—</p>
+    <div style="margin-top:22px;display:flex;flex-wrap:wrap;gap:12px">
+      <button onclick="command('start')" class="btn go">▶ Start</button>
+      <button onclick="command('stop')" class="btn stop">■ Stop</button>
+      <button onclick="command('reload_config')" class="btn">↻ Reload</button>
+      <button onclick="refresh()" class="btn" style="margin-left:auto">Refresh now</button>
     </div>
   </section>
 
-  <!-- Details (kept small, below the fold) -->
-  <section class="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-    <div class="card rounded-xl p-4"><p class="text-xs text-slate-400">Balance</p><p id="kpi-balance" class="mt-1 text-lg font-bold text-white">—</p></div>
-    <div class="card rounded-xl p-4"><p class="text-xs text-slate-400">Closed P/L</p><p id="kpi-pnl" class="mt-1 text-lg font-bold">—</p></div>
-    <div class="card rounded-xl p-4"><p class="text-xs text-slate-400">Trades (W/L)</p><p id="kpi-trades" class="mt-1 text-lg font-bold text-white">—</p></div>
-    <div class="card rounded-xl p-4"><p class="text-xs text-slate-400">Max drawdown</p><p id="kpi-dd" class="mt-1 text-lg font-bold text-white">—</p></div>
+  <!-- Details -->
+  <section class="grid-kpi" style="margin-top:16px">
+    <div class="card" style="padding:16px"><p class="muted" style="margin:0;font-size:12px">Balance</p><p id="kpi-balance" style="margin:4px 0 0;font-size:19px;font-weight:700">—</p></div>
+    <div class="card" style="padding:16px"><p class="muted" style="margin:0;font-size:12px">Closed P/L</p><p id="kpi-pnl" style="margin:4px 0 0;font-size:19px;font-weight:700">—</p></div>
+    <div class="card" style="padding:16px"><p class="muted" style="margin:0;font-size:12px">Trades (W/L)</p><p id="kpi-trades" style="margin:4px 0 0;font-size:19px;font-weight:700">—</p></div>
+    <div class="card" style="padding:16px"><p class="muted" style="margin:0;font-size:12px">Max drawdown</p><p id="kpi-dd" style="margin:4px 0 0;font-size:19px;font-weight:700">—</p></div>
   </section>
 
-  <div class="mt-5 grid gap-5 lg:grid-cols-3">
-    <section class="card rounded-xl p-4 lg:col-span-2">
-      <h2 class="text-sm font-semibold text-slate-300">Daily P/L (last 14 days)</h2>
-      <div class="mt-3 h-56"><canvas id="chart-daily"></canvas></div>
+  <div class="grid-2" style="margin-top:16px">
+    <section class="card" style="padding:18px">
+      <h2 style="margin:0;font-size:15px;color:var(--muted)">Daily P/L (last 14 days)</h2>
+      <div style="margin-top:12px;height:220px"><canvas id="chart-daily"></canvas></div>
     </section>
-    <section class="card rounded-xl p-4">
-      <h2 class="text-sm font-semibold text-slate-300">Trading these coins</h2>
-      <div id="whitelist" class="mt-3 flex flex-wrap gap-2"></div>
-      <h2 class="mt-4 text-sm font-semibold text-slate-300">Open trades</h2>
-      <div id="open-wrap" class="mt-2 text-sm"></div>
+    <section class="card" style="padding:18px">
+      <h2 style="margin:0;font-size:15px;color:var(--muted)">Trading these coins</h2>
+      <div id="whitelist" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px"></div>
+      <h2 style="margin:16px 0 0;font-size:15px;color:var(--muted)">Open trades</h2>
+      <div id="open-wrap" style="margin-top:8px;font-size:14px"></div>
     </section>
   </div>
 
-  <footer class="mt-6 text-center text-xs text-slate-600">
+  <footer style="margin-top:26px;text-align:center;font-size:12px;color:var(--muted)">
     Voltra · your bot's report card · not financial advice
   </footer>
 </div>
 
-<div id="toast" class="fixed bottom-5 left-1/2 hidden -translate-x-1/2 rounded-lg px-4 py-2 text-sm shadow-lg"></div>
+<div id="toast" class="toast hidden"></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -106,15 +139,16 @@ const fmtSignedPct = (v) => (v == null ? "—" : `${v >= 0 ? "+" : ""}${(v * 100
 function toast(msg, bad) {
   const el = $("toast");
   el.textContent = msg;
-  el.className = `fixed bottom-5 left-1/2 -translate-x-1/2 rounded-lg px-4 py-2 text-sm shadow-lg ${bad ? "bg-rose-600 text-white" : "bg-emerald-500 text-slate-900"}`;
+  el.className = "toast";
+  el.style.background = bad ? "var(--bad)" : "linear-gradient(135deg,#0e7490,var(--cyan))";
+  el.style.color = bad ? "#fff" : "#04121a";
   setTimeout(() => el.classList.add("hidden"), 3000);
 }
 
 $("login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   USER = $("in-user").value; PASS = $("in-pass").value;
-  const ok = await connect($("in-api").value);
-  if (!ok) return;
+  if (!(await connect($("in-api").value))) return;
   $("mode-switch").value = API;
   $("login-view").classList.add("hidden");
   $("dash-view").classList.remove("hidden");
@@ -124,9 +158,8 @@ $("login-form").addEventListener("submit", async (e) => {
 
 async function connect(url) {
   API = url.replace(/\/+$/, "");
-  const basic = btoa(`${USER}:${PASS}`);
   try {
-    const r = await fetch(`${API}/api/v1/token/login`, { method: "POST", headers: { Authorization: `Basic ${basic}` } });
+    const r = await fetch(`${API}/api/v1/token/login`, { method: "POST", headers: { Authorization: `Basic ${btoa(`${USER}:${PASS}`)}` } });
     if (!r.ok) throw new Error(`login failed (HTTP ${r.status})`);
     TOKEN = (await r.json()).access_token;
     $("frequi-link").href = API;
@@ -139,9 +172,7 @@ async function connect(url) {
   }
 }
 
-async function switchBot(url) {
-  if (await connect(url)) { toast("switched"); refresh(); }
-}
+async function switchBot(url) { if (await connect(url)) { toast("switched"); refresh(); } }
 
 async function api(path) {
   const r = await fetch(`${API}/api/v1${path}`, { headers: { Authorization: `Bearer ${TOKEN}` } });
@@ -149,42 +180,32 @@ async function api(path) {
   return r.json();
 }
 
-// Bot commands. start/stop/reload only — this never touches dry_run (live is a
-// human-only config change the bot API can't make from here).
+// start/stop/reload only — never touches dry_run (live is a human-only config change).
 async function command(action) {
   const label = { start: "Start", stop: "Stop", reload_config: "Reload" }[action];
   if (action === "stop" && !confirm("Stop the bot? It won't open new trades until you Start it again.")) return;
   try {
-    const r = await fetch(`${API}/api/v1/${action}`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
-    });
+    const r = await fetch(`${API}/api/v1/${action}`, { method: "POST", headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" } });
     const j = await r.json().catch(() => ({}));
     toast(j.status || `${label} sent`);
     setTimeout(refresh, 900);
-  } catch (err) {
-    toast(`${label} failed: ${err.message}`, true);
-  }
+  } catch (err) { toast(`${label} failed: ${err.message}`, true); }
 }
 
-// Honest benchmark: how the bot has done since it started vs. simply holding BTC
-// over the same window. Returns {ret, days} or null if it can't be computed.
+// Honest benchmark: bot return since start vs. holding BTC over the same window.
 async function buyHoldReturn(profit) {
   try {
     const start = profit.bot_start_timestamp;
     if (!start) return null;
     const c = await api("/pair_candles?pair=BTC/USD&timeframe=1h&limit=800");
-    const ci = c.columns.indexOf("close");
-    const di = c.columns.indexOf("date");
+    const ci = c.columns.indexOf("close"), di = c.columns.indexOf("date");
     if (ci < 0 || di < 0 || !c.data.length) return null;
     const first = c.data.find((row) => new Date(row[di]).getTime() >= start);
     const startClose = first ? first[ci] : c.data[0][ci];
     const endClose = c.data[c.data.length - 1][ci];
     if (!startClose) return null;
     return { ret: endClose / startClose - 1, days: Math.max(1, Math.round((Date.now() - start) / 86400000)) };
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 async function refresh() {
@@ -212,7 +233,9 @@ function renderCockpit(cfg, profit, balance, bh) {
   const dry = cfg.dry_run, running = cfg.state === "running";
   const badge = $("badge-mode");
   badge.textContent = dry ? "PRACTICE" : "LIVE";
-  badge.className = `rounded-full px-3 py-1 text-xs font-bold ${dry ? "bg-sky-900 text-sky-300" : "bg-rose-900 text-rose-300"}`;
+  badge.style.cssText = dry
+    ? "padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;background:#0c3b4a;color:var(--cyan)"
+    : "padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;background:#3a1620;color:var(--bad)";
 
   $("status-line").textContent = dry
     ? (running ? "🧪 Practicing with pretend money — the bot is running and watching the market." : "🧪 Practicing — the bot is stopped.")
@@ -230,8 +253,7 @@ function renderCockpit(cfg, profit, balance, bh) {
     const winning = ret >= bh.ret;
     bl.innerHTML = `Since the bot started (${bh.days} day${bh.days === 1 ? "" : "s"}): ` +
       `<b>Voltra ${fmtSignedPct(ret)}</b> vs. just holding BTC <b>${fmtSignedPct(bh.ret)}</b> — ` +
-      (winning ? `<span class="text-emerald-400">✅ beating buy-and-hold</span>` : `<span class="text-amber-400">⚠️ trailing buy-and-hold</span>`);
-    bl.classList.remove("hidden");
+      (winning ? `<span class="ok">✅ beating buy-and-hold</span>` : `<span class="wait">⚠️ trailing buy-and-hold</span>`);
   } else {
     bl.textContent = "Buy-and-hold comparison will appear once there's price history to compare.";
   }
@@ -242,7 +264,8 @@ function renderKpis(profit, balance) {
   const pnl = profit.profit_closed_coin ?? 0;
   const pnlEl = $("kpi-pnl");
   pnlEl.textContent = fmtUsd(pnl);
-  pnlEl.className = `mt-1 text-lg font-bold ${pnl >= 0 ? "text-emerald-400" : "text-rose-400"}`;
+  pnlEl.className = pnl >= 0 ? "ok" : "bad";
+  pnlEl.style.cssText = "margin:4px 0 0;font-size:19px;font-weight:700";
   const w = profit.winning_trades ?? 0, l = profit.losing_trades ?? 0;
   $("kpi-trades").textContent = `${profit.closed_trade_count ?? 0} (${w}W/${l}L)`;
   $("kpi-dd").textContent = profit.max_drawdown != null ? fmtPct(profit.max_drawdown) : "—";
@@ -250,38 +273,26 @@ function renderKpis(profit, balance) {
 
 function renderDaily(daily) {
   const rows = (daily.data || []).slice().reverse();
-  const labels = rows.map((d) => d.date.slice(5));
-  const values = rows.map((d) => d.abs_profit);
   if (chart) chart.destroy();
   chart = new Chart($("chart-daily"), {
     type: "bar",
-    data: { labels, datasets: [{ data: values, backgroundColor: values.map((v) => (v >= 0 ? "#34d399" : "#fb7185")) }] },
-    options: {
-      animation: false, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: { x: { ticks: { color: "#64748b" }, grid: { display: false } }, y: { ticks: { color: "#64748b" }, grid: { color: "#1e2a44" } } },
-    },
+    data: { labels: rows.map((d) => d.date.slice(5)), datasets: [{ data: rows.map((d) => d.abs_profit), backgroundColor: rows.map((d) => (d.abs_profit >= 0 ? "#34d399" : "#fb7185")) }] },
+    options: { animation: false, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { x: { ticks: { color: "#93a1b5" }, grid: { display: false } }, y: { ticks: { color: "#93a1b5" }, grid: { color: "#1e2a44" } } } },
   });
 }
 
 function renderWhitelist(wl) {
-  $("whitelist").innerHTML = (wl.whitelist || [])
-    .map((p) => `<span class="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">${p}</span>`)
-    .join("");
+  $("whitelist").innerHTML = (wl.whitelist || []).map((p) => `<span class="pill">${p}</span>`).join("");
 }
 
 function renderTrades(status) {
   const wrap = $("open-wrap");
-  if (!status.length) {
-    wrap.innerHTML = `<p class="text-slate-500">None — the bot is waiting for a good setup.</p>`;
-    return;
-  }
+  if (!status.length) { wrap.innerHTML = `<p class="muted" style="margin:0">None — the bot is waiting for a good setup.</p>`; return; }
   wrap.innerHTML = status.map((t) => {
     const ratio = t.profit_ratio ?? 0;
-    const cls = ratio >= 0 ? "text-emerald-400" : "text-rose-400";
-    return `<div class="flex justify-between border-t border-slate-800 py-1.5">
-      <span class="font-semibold text-white">${t.pair}</span>
-      <span class="${cls}">${fmtSignedPct(ratio)}</span></div>`;
+    return `<div style="display:flex;justify-content:space-between;border-top:1px solid var(--line);padding:6px 0">
+      <span style="font-weight:600">${t.pair}</span><span class="${ratio >= 0 ? "ok" : "bad"}">${fmtSignedPct(ratio)}</span></div>`;
   }).join("");
 }
 </script>
