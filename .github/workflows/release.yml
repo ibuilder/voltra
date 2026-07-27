@@ -8,6 +8,13 @@ name: Release desktop controller
 #   TAURI_SIGNING_PRIVATE_KEY           (from: npx @tauri-apps/cli signer generate)
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 # GITHUB_TOKEN is provided automatically.
+#
+# OPTIONAL — Authenticode code signing (removes AV false positives + SmartScreen
+# warnings for end users). Set these up per docs/code-signing.md; until then the
+# build is unsigned but fully functional. Uses Azure Trusted Signing:
+#   Secrets:   AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET
+#   Variables: AZURE_TS_ENDPOINT, AZURE_TS_ACCOUNT, AZURE_TS_PROFILE
+# Signing activates automatically once AZURE_CLIENT_ID exists.
 
 on:
   push:
@@ -20,6 +27,10 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    env:
+      # True only when Azure Trusted Signing is configured. Gates the signing
+      # step so unsigned builds keep working until you enroll.
+      HAS_SIGNING: ${{ secrets.AZURE_CLIENT_ID != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -39,12 +50,30 @@ jobs:
         working-directory: desktop
         run: npm install
 
+      # Authenticode signing (optional). Injects a Tauri `signCommand` so each
+      # bundle is Authenticode-signed DURING the build — before the updater
+      # signature is computed, so latest.json stays valid. Skipped entirely when
+      # Azure Trusted Signing isn't configured. See docs/code-signing.md.
+      - name: Configure Authenticode signing
+        if: env.HAS_SIGNING == 'true'
+        shell: bash
+        working-directory: desktop/src-tauri
+        run: |
+          cargo install trusted-signing-cli --locked
+          SIGN_CMD="trusted-signing-cli -e ${{ vars.AZURE_TS_ENDPOINT }} -a ${{ vars.AZURE_TS_ACCOUNT }} -c ${{ vars.AZURE_TS_PROFILE }} %1"
+          jq --arg c "$SIGN_CMD" '.bundle.windows = ((.bundle.windows // {}) + {signCommand:$c})' tauri.conf.json > conf.tmp && mv conf.tmp tauri.conf.json
+          echo "Authenticode signing enabled via Azure Trusted Signing."
+
       - name: Build, sign, and release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Azure Trusted Signing credentials (empty/harmless when not configured).
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         with:
           projectPath: desktop
           tagName: ${{ github.ref_name }}
