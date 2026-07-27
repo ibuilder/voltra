@@ -52,6 +52,10 @@ jobs:
           releaseBody: "See CHANGELOG.md. Signed auto-update artifacts attached."
           releaseDraft: true
           prerelease: false
+          # The app is distributed as the NSIS -setup.exe (currentUser, no admin),
+          # so make the updater's primary windows-x86_64 entry point at NSIS too —
+          # otherwise auto-update pulls the per-machine MSI and can trigger UAC.
+          updaterJsonPreferNsis: true
           # tauri-action emits latest.json (the updater manifest) automatically
           # when the updater plugin is active and a signing key is present.
           includeUpdaterJson: true
