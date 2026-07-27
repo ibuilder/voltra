@@ -27,6 +27,7 @@ user_data/backups/
 # Tauri desktop app
 .tauri-signing.key
 *.tauri-signing.key
+*.tauri-signing.key.pub
 desktop/node_modules/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
