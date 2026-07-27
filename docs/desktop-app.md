@@ -10,7 +10,8 @@ enables live trading.
 
 - One `Voltra Controller.exe` (NSIS installer + MSI). Double-click installs.
 - Tray icon: Start stack / Stop stack / Open Dashboard / Show / Quit.
-- Window: service list, autostart toggle, project-folder picker.
+- Window: service list, autostart toggle, project-folder picker, **Kraken API
+  key entry** (OS-encrypted).
 - Auto-updates from signed GitHub Releases (prompts before installing).
 
 ## Prerequisites to build (one-time, on your machine or CI)
@@ -27,32 +28,33 @@ npm run tauri dev      # run it live
 npm run tauri build    # produce the installer in src-tauri/target/release/bundle
 ```
 
-## Publishing to GitHub (handoff — needs your GitHub account)
+## Release (what's done vs. what's left)
 
-I prepared everything; these commands are yours to run (they publish public
-content and need your GitHub auth):
+**Already done** (in the repo now):
+- Repo exists and is public: `github.com/ibuilder/voltra`.
+- Updater signing keypair generated; the **public** key is wired into
+  `desktop/src-tauri/tauri.conf.json` (`plugins.updater.pubkey`). The **private**
+  key is at `desktop/.tauri-signing.key` (gitignored) — it was generated with an
+  **empty password**.
+- The updater endpoint already points at `ibuilder/voltra`.
+
+**Left to you** (needs your GitHub auth + handles the private key):
 
 ```
-# 1. create the repo (private is fine; Releases still work)
-gh repo create voltra --private --source . --remote origin --push
+# 1. add the signing private key as repo Actions secrets
+#    (GitHub -> Settings -> Secrets and variables -> Actions -> New secret)
+#      TAURI_SIGNING_PRIVATE_KEY           = full contents of desktop/.tauri-signing.key
+#      TAURI_SIGNING_PRIVATE_KEY_PASSWORD  = (leave empty — the key has no password)
 
-# 2. generate the updater signing keypair (KEEP THE PRIVATE KEY SECRET)
-cd desktop && npx @tauri-apps/cli signer generate -w ../.tauri-signing.key
-#    -> prints a PUBLIC key. Paste it into desktop/src-tauri/tauri.conf.json
-#       at plugins.updater.pubkey (replacing REPLACE_WITH_YOUR_...).
-#    -> also replace ibuilder in the endpoint URL with your GitHub user/org.
-
-# 3. add the private key as repo secrets (Settings -> Secrets -> Actions)
-#      TAURI_SIGNING_PRIVATE_KEY            = contents of .tauri-signing.key
-#      TAURI_SIGNING_PRIVATE_KEY_PASSWORD   = the password you set
-#    NEVER commit .tauri-signing.key (it is gitignored).
-
-# 4. cut a release — the CI builds, signs, and publishes the installer + latest.json
+# 2. cut a release: CI builds, signs, and publishes the installer + latest.json
 git tag app-v0.1.0 && git push origin app-v0.1.0
 ```
 
-The release is created as a **draft** — review it, then publish. Once published,
-installed apps will see the update, verify its signature, and prompt to install.
+The release is created as a **draft**, and GitHub's `/releases/latest` (the
+updater endpoint + the site's Download button) **ignores drafts**. So the final
+manual step: open **Releases**, review the drafted `Voltra Controller app-v0.1.0`,
+and click **Publish release**. Only then does the Download link work and do
+installed apps see the update (signature-verified, prompt before install).
 
 ## Autoupdater safety
 
@@ -70,6 +72,21 @@ installed apps will see the update, verify its signature, and prompt to install.
 - The app finds `docker.exe` on PATH or at the Docker Desktop default location.
 - It assumes Docker Desktop is installed. (A future version could bundle a
   Docker health check / install prompt.)
+
+### Kraken API key
+
+- **You create the key on Kraken** — there is no "log in with Kraken" that
+  provisions a key (exchanges don't expose OAuth for that). The **Open Kraken API
+  page** button deep-links to Kraken's key management; make a key with **Query +
+  Trade** permissions, **no Withdraw**, IP-whitelisted to this machine.
+- Paste key + secret and **Save securely** → stored in **Windows Credential
+  Manager** (encrypted by the OS), never a plaintext file. The window only shows a
+  masked fingerprint afterward.
+- **Apply to bot (.env)** writes `FREQTRADE__EXCHANGE__KEY/SECRET` into the
+  project `.env` so the key is ready — then restart the stack to load it.
+- **A key is not needed for the dry-run** (Freqtrade simulates fills). It only
+  matters at go-live, which is still a separate, manual, human-only step — saving
+  or applying a key **never** flips `dry_run`.
 
 ## Limits (honest)
 
