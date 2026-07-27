@@ -153,8 +153,11 @@ $("login-form").addEventListener("submit", async (e) => {
   $("login-view").classList.add("hidden");
   $("dash-view").classList.remove("hidden");
   await refresh();
-  timer = setInterval(refresh, 15000);
 });
+
+// Clear any prior interval before starting a new one (prevents stacked timers
+// that would hammer a bot with a stale token after a mode switch).
+function startAutoRefresh() { if (timer) clearInterval(timer); timer = setInterval(refresh, 15000); }
 
 async function connect(url) {
   API = url.replace(/\/+$/, "");
@@ -222,9 +225,13 @@ async function refresh() {
     renderWhitelist(whitelist);
     renderTrades(status);
     $("last-update").textContent = `updated ${new Date().toLocaleTimeString()}`;
+    if (!timer) startAutoRefresh();          // (re)start auto-refresh once healthy
   } catch (err) {
+    // Stop hammering a bot we can't reach — pause auto-refresh instead of
+    // spamming 401s every cycle. Manual "Refresh now" resumes it on success.
+    if (timer) { clearInterval(timer); timer = null; }
     const el = $("dash-error");
-    el.textContent = `Refresh failed: ${err.message}`;
+    el.textContent = `Couldn't reach this bot (${err.message}). Auto-refresh paused — fix it, then hit "Refresh now".`;
     el.classList.remove("hidden");
   }
 }
