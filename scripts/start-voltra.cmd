@@ -26,7 +26,9 @@ set /a tries=0
 "%DOCKERCLI%" info >nul 2>&1 && goto ready
 set /a tries+=1
 if %tries% geq 36 goto giveup
-timeout /t 5 /nobreak >nul
+REM ping-based sleep (~5s): unlike `timeout`, works with no console /
+REM redirected stdin, so this is robust under Task Scheduler too.
+ping -n 6 127.0.0.1 >nul
 goto waitloop
 
 :ready
