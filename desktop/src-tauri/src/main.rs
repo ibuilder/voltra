@@ -126,6 +126,112 @@ fn open_dashboard() {
     let _ = open::that("http://127.0.0.1:8899");
 }
 
+// ---------------------------------------------------------------------------
+// Kraken API key handling.
+//
+// Kraken has NO OAuth flow to provision keys for third-party apps, so the user
+// creates a key by hand on Kraken's site (the "Open Kraken API page" button
+// deep-links there) and pastes it in. We store it in the OS credential store
+// (Windows Credential Manager) via `keyring` — never in a plaintext file.
+//
+// SAFETY: saving a key does NOT enable live trading. `dry_run` lives in the
+// Docker config and is a human-only change; this app never touches it. The key
+// only matters once the user manually goes live outside this app.
+// ---------------------------------------------------------------------------
+const KEYRING_SERVICE: &str = "voltra-controller";
+
+fn kr_entry(name: &str) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(KEYRING_SERVICE, name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn save_kraken_key(key: String, secret: String) -> Result<(), String> {
+    let (key, secret) = (key.trim(), secret.trim());
+    if key.is_empty() || secret.is_empty() {
+        return Err("Both the API key and secret are required.".into());
+    }
+    kr_entry("kraken_api_key")?
+        .set_password(key)
+        .map_err(|e| format!("could not save key: {e}"))?;
+    kr_entry("kraken_api_secret")?
+        .set_password(secret)
+        .map_err(|e| format!("could not save secret: {e}"))?;
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct KeyStatus {
+    saved: bool,
+    hint: String,
+}
+
+#[tauri::command]
+fn kraken_key_status() -> KeyStatus {
+    match kr_entry("kraken_api_key").and_then(|e| e.get_password().map_err(|e| e.to_string())) {
+        Ok(k) if !k.is_empty() => {
+            // Show only a masked fingerprint, never the full secret, to the UI.
+            let hint = if k.len() > 8 {
+                format!("{}…{}", &k[..4], &k[k.len() - 4..])
+            } else {
+                "saved".into()
+            };
+            KeyStatus { saved: true, hint }
+        }
+        _ => KeyStatus { saved: false, hint: String::new() },
+    }
+}
+
+#[tauri::command]
+fn clear_kraken_key() -> Result<(), String> {
+    // Remove both entries; a missing entry is not an error.
+    if let Ok(e) = kr_entry("kraken_api_key") {
+        let _ = e.delete_password();
+    }
+    if let Ok(e) = kr_entry("kraken_api_secret") {
+        let _ = e.delete_password();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn open_kraken_api_page() {
+    // Kraken Pro API-key management. The user creates a TRADE-ONLY, NO-withdrawal,
+    // IP-whitelisted key here, then pastes it back into the app.
+    let _ = open::that("https://pro.kraken.com/app/settings/api");
+}
+
+// Upsert `KEY=value` in a list of .env lines.
+fn upsert_env(lines: &mut Vec<String>, key: &str, value: &str) {
+    let prefix = format!("{key}=");
+    for line in lines.iter_mut() {
+        if line.starts_with(&prefix) {
+            *line = format!("{key}={value}");
+            return;
+        }
+    }
+    lines.push(format!("{key}={value}"));
+}
+
+#[tauri::command]
+fn apply_kraken_key_to_env(app: tauri::AppHandle) -> Result<String, String> {
+    let key = kr_entry("kraken_api_key")?
+        .get_password()
+        .map_err(|_| "No Kraken key saved yet — save one first.".to_string())?;
+    let secret = kr_entry("kraken_api_secret")?
+        .get_password()
+        .map_err(|_| "No Kraken secret saved yet — save one first.".to_string())?;
+
+    let env_path = project_dir(&app).join(".env");
+    let existing = std::fs::read_to_string(&env_path).unwrap_or_default();
+    let mut lines: Vec<String> = existing.lines().map(|l| l.to_string()).collect();
+    upsert_env(&mut lines, "FREQTRADE__EXCHANGE__KEY", &key);
+    upsert_env(&mut lines, "FREQTRADE__EXCHANGE__SECRET", &secret);
+    std::fs::write(&env_path, lines.join("\n") + "\n").map_err(|e| e.to_string())?;
+
+    Ok("Key written to .env. Restart the stack to load it. Dry-run stays ON — \
+        going live is a separate, manual step.".into())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -144,6 +250,11 @@ fn main() {
             autostart_enabled,
             set_autostart,
             open_dashboard,
+            save_kraken_key,
+            kraken_key_status,
+            clear_kraken_key,
+            open_kraken_api_page,
+            apply_kraken_key_to_env,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

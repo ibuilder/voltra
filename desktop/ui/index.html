@@ -24,6 +24,15 @@
   .path input { width:100%; padding:8px; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#e2e8f0; }
   footer { padding:12px 20px; font-size:11px; color:#64748b; border-top:1px solid #1e2a44; }
   #msg { min-height:18px; font-size:12px; color:#94a3b8; }
+  .kraken { margin-top:18px; padding-top:14px; border-top:1px solid #1e2a44; }
+  .sec-title { font-size:13px; font-weight:700; color:#e2e8f0; display:flex; align-items:center; gap:8px; }
+  .pill { font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px; }
+  .pill.bad { background:#4c1d24; color:#fb7185; }
+  .pill.ok { background:#064e3b; color:#34d399; }
+  .hint { font-size:11px; color:#94a3b8; margin:8px 0; }
+  .hint b { color:#cbd5e1; }
+  .kraken input { width:100%; padding:8px; margin-top:8px; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#e2e8f0; }
+  button.link { flex:none; width:100%; background:none; border:1px dashed #334155; color:#7dd3fc; margin-top:6px; }
 </style>
 </head>
 <body>
@@ -45,6 +54,29 @@
       <div style="font-size:12px;color:#94a3b8;margin-bottom:4px;">Project folder (where docker-compose.yml lives)</div>
       <input id="dir" onchange="saveDir()" />
     </div>
+
+    <section class="kraken">
+      <div class="sec-title">Kraken API key
+        <span id="keyState" class="pill bad">not saved</span>
+      </div>
+      <p class="hint">
+        Kraken has no “log in and authorize” button — you create the key yourself
+        on Kraken, then paste it here. It’s stored encrypted in Windows Credential
+        Manager, never in a plaintext file. Saving a key does <b>not</b> start live
+        trading — the bots stay in dry-run.
+      </p>
+      <button class="link" onclick="openKraken()">Open Kraken API page ↗</button>
+      <p class="hint">On that page, create a key with <b>Query + Trade</b> permissions,
+        <b>no Withdraw</b>, and IP-whitelisted to this machine.</p>
+      <input id="apiKey" placeholder="API key" autocomplete="off" />
+      <input id="apiSecret" type="password" placeholder="API secret" autocomplete="off" />
+      <div class="row">
+        <button class="primary" onclick="saveKey()">Save securely</button>
+        <button onclick="clearKey()">Clear</button>
+      </div>
+      <button onclick="applyKey()">Apply to bot (.env) — prepares go-live, stays dry-run</button>
+    </section>
+
     <p id="msg"></p>
   </main>
   <footer>
@@ -68,6 +100,40 @@
     catch(e){ msg("error: "+e); }
   };
 
+  window.openKraken = () => invoke("open_kraken_api_page");
+
+  window.refreshKeyState = async () => {
+    try {
+      const s = await invoke("kraken_key_status");
+      const el = document.getElementById("keyState");
+      el.textContent = s.saved ? ("saved · " + s.hint) : "not saved";
+      el.className = "pill " + (s.saved ? "ok" : "bad");
+    } catch (e) { msg("key status error: " + e); }
+  };
+
+  window.saveKey = async () => {
+    const key = document.getElementById("apiKey").value;
+    const secret = document.getElementById("apiSecret").value;
+    try {
+      await invoke("save_kraken_key", { key, secret });
+      document.getElementById("apiKey").value = "";
+      document.getElementById("apiSecret").value = "";
+      msg("Kraken key saved (encrypted in Windows Credential Manager)");
+    } catch (e) { msg("error: " + e); }
+    refreshKeyState();
+  };
+
+  window.clearKey = async () => {
+    try { await invoke("clear_kraken_key"); msg("Kraken key cleared"); }
+    catch (e) { msg("error: " + e); }
+    refreshKeyState();
+  };
+
+  window.applyKey = async () => {
+    try { msg(await invoke("apply_kraken_key_to_env")); }
+    catch (e) { msg("error: " + e); }
+  };
+
   window.refresh = async () => {
     try {
       const svcs = await invoke("stack_status");
@@ -84,6 +150,7 @@
   async function boot() {
     document.getElementById("dir").value = await invoke("get_project_dir");
     document.getElementById("autostart").checked = await invoke("autostart_enabled");
+    refreshKeyState();
     refresh();
     setInterval(refresh, 15000);
   }

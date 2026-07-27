@@ -17,6 +17,9 @@ tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 open = "5"
+# OS-native secret storage (Windows Credential Manager on Windows) for the
+# user's Kraken API key/secret — never written to disk in plaintext.
+keyring = "2"
 
 [features]
 # by default Tauri runs in production mode, unless `tauri dev` is used.
