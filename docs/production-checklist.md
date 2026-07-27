@@ -8,7 +8,7 @@ about whether it does, at a price you cap yourself.
 ## A. Machine readiness (do these NOW — they protect the dry-run gate)
 
 - [ ] **One-command autostart install** (recommended). In PowerShell:
-  `powershell -ExecutionPolicy Bypass -File C:\Server\voltra\scripts\install-autostart.ps1`
+  `powershell -ExecutionPolicy Bypass -File C:\Server\solsignal\scripts\install-autostart.ps1`
   This copies `scripts\start-voltra.cmd` into your Startup folder (brings
   the whole stack up at every login) and disables AC sleep/hibernate. No admin
   needed. Undo instructions print at the end. Absence of this cost 6 days of

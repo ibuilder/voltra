@@ -8,7 +8,7 @@ REM ============================================================
 setlocal
 set "DOCKER=C:\Program Files\Docker\Docker\Docker Desktop.exe"
 set "DOCKERCLI=C:\Program Files\Docker\Docker\resources\bin\docker.exe"
-set "PROJ=C:\Server\voltra"
+set "PROJ=C:\Server\solsignal"
 set "LOG=%PROJ%\user_data\logs\autostart.log"
 
 echo [%date% %time%] autostart begin >> "%LOG%"

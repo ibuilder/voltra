@@ -65,7 +65,7 @@ installed apps will see the update, verify its signature, and prompt to install.
 
 ## Configuration
 
-- The app defaults the project folder to `C:\Server\voltra`. Change it in the
+- The app defaults the project folder to `C:\Server\solsignal`. Change it in the
   window if your checkout lives elsewhere; it's saved to the app config dir.
 - The app finds `docker.exe` on PATH or at the Docker Desktop default location.
 - It assumes Docker Desktop is installed. (A future version could bundle a

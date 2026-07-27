@@ -10,7 +10,7 @@ first, diagnose second. In dry-run nothing is at risk — practice these now.
 ## Fast commands
 
 ```bash
-cd /opt/voltra            # or C:\Server\voltra
+cd /opt/voltra            # or C:\Server\solsignal
 docker compose ps                                  # health of all services
 docker logs voltra-freqtrade --tail 100         # a bot's log
 docker logs voltra-healthwatch --tail 50        # alerts + tripwire

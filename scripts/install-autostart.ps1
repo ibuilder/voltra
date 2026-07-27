@@ -7,7 +7,7 @@
 #       powercfg /change standby-timeout-ac 30
 
 $ErrorActionPreference = "Stop"
-$proj    = "C:\Server\voltra"
+$proj    = "C:\Server\solsignal"
 $launcher = Join-Path $proj "scripts\start-voltra.cmd"
 $startup = [Environment]::GetFolderPath("Startup")
 $dest    = Join-Path $startup "Voltra.cmd"

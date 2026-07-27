@@ -20,7 +20,7 @@ use tauri::{Emitter, Manager};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_autostart::ManagerExt;
 
-const DEFAULT_PROJECT_DIR: &str = "C:\\Server\\voltra";
+const DEFAULT_PROJECT_DIR: &str = "C:\\Server\\solsignal";
 
 // Candidate docker CLI locations (Docker Desktop is often not on PATH).
 fn docker_bin() -> String {

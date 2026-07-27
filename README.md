@@ -149,7 +149,7 @@ results and pro-rata backtest expectations (>20% = red flag, judge at day 30).
 To automate it, create a Windows scheduled task (run once, as admin if needed):
 
     schtasks /Create /SC WEEKLY /D MON /ST 08:00 /TN "Voltra Weekly Report" ^
-      /TR "\"C:\laragon\bin\python\python-3.10\python.exe\" \"C:\Server\voltra\scripts\report.py\""
+      /TR "\"C:\laragon\bin\python\python-3.10\python.exe\" \"C:\Server\solsignal\scripts\report.py\""
 
 ## Kraken-specific notes
 
