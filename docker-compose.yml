@@ -96,6 +96,32 @@ services:
       timeout: 10s
       retries: 5
 
+  # Conservative mode — DCA accumulation bot (buys a fixed amount weekly, holds).
+  freqtrade-dca:
+    image: freqtradeorg/freqtrade:stable
+    restart: unless-stopped
+    container_name: voltra-freqtrade-dca
+    <<: *hardening
+    logging: *logging
+    mem_limit: 1g
+    volumes:
+      - "./user_data:/freqtrade/user_data"
+    ports:
+      - "127.0.0.1:8083:8080"
+    env_file:
+      - .env
+    command: >
+      trade
+      --logfile /freqtrade/user_data/logs/freqtrade-dca.log
+      --db-url sqlite:////freqtrade/user_data/tradesv3.dca.dryrun.sqlite
+      --config /freqtrade/user_data/config.dca.json
+      --strategy DcaAccumulateStrategy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8080/api/v1/ping', timeout=5)"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+
   # TradingView -> Freqtrade webhook relay (validates shared secret, forwards
   # to freqtrade-webhook REST). Bound to localhost: expose to the internet ONLY
   # through Caddy (TLS) — the relay's shared secret is the auth.

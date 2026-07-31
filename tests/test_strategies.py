@@ -291,3 +291,36 @@ def test_cp_bullish_engulfing_detected():
         "volume": [1000.0, 1400.0],
     })
     assert cp_engulfing(df).iloc[-1], "green candle engulfing prior red body"
+
+
+# --- DcaAccumulateStrategy (schedule math) ---------------------------------
+
+dca = _load_pure_functions("DcaAccumulateStrategy.py", "DcaAccumulateStrategy")
+dca_buys_due = dca["dca_buys_due"]
+_T0 = pd.Timestamp("2026-01-01", tz="UTC")
+_WK = 168  # hours
+
+
+def test_dca_no_buy_right_after_open():
+    assert dca_buys_due(_T0, _T0, 1, _WK) == 0  # seed already done, nothing owed
+
+
+def test_dca_one_buy_due_after_a_week():
+    assert dca_buys_due(_T0, _T0 + pd.Timedelta(hours=_WK + 2), 1, _WK) == 1
+
+
+def test_dca_within_the_week_owes_nothing():
+    assert dca_buys_due(_T0, _T0 + pd.Timedelta(hours=_WK - 2), 1, _WK) == 0
+
+
+def test_dca_catches_up_missed_weeks():
+    # 3 full weeks elapsed, only the seed done -> expected 1+3=4, owed 3
+    assert dca_buys_due(_T0, _T0 + pd.Timedelta(hours=_WK * 3 + 1), 1, _WK) == 3
+
+
+def test_dca_no_double_buy_once_caught_up():
+    assert dca_buys_due(_T0, _T0 + pd.Timedelta(hours=_WK * 3 + 1), 4, _WK) == 0
+
+
+def test_dca_ignores_future_open():
+    assert dca_buys_due(_T0, _T0 - pd.Timedelta(hours=1), 0, _WK) == 0

@@ -4,8 +4,14 @@
 - Python 3.11, Freqtrade framework, Docker deployment. Do not hand-roll exchange
   API code — use Freqtrade/CCXT abstractions.
 - NEVER set dry_run: false. Live config changes are human-only.
-- Every strategy must implement: 1% risk sizing, ATR stoploss (on-exchange),
-  1:2 min RR, MaxDrawdown + CooldownPeriod protections.
+- Every **active** (signal-driven, round-trip) strategy must implement: 1% risk
+  sizing, ATR stoploss (on-exchange), 1:2 min RR, MaxDrawdown + CooldownPeriod
+  protections.
+- **DCA / accumulation** strategies are a separate, lower-risk category: they buy
+  small fixed amounts on a schedule and HOLD through drawdowns (a stop-loss or
+  drawdown-halt would defeat the purpose). Their guardrails instead are: small
+  fixed per-buy stake (<=1% of wallet), a far catastrophe-only backstop stop, no
+  leverage, spot only, dry-run by default, and an honest vs-buy-and-hold report.
 - Every strategy change requires: unit tests pass + backtest report
   (2024–2026, fees 0.16% RT, slippage 0.05%) before commit.
 - Hyperopt only on training window; always validate out-of-sample.
