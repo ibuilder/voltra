@@ -7,6 +7,15 @@ milestones (pre-1.0, no semantic-version guarantees yet).
 ## [Unreleased]
 
 ### Added
+- **Simple cockpit dashboard** (:8899) — single-page, brand-styled: plain-English
+  status, Start/Stop/Reload bot-command buttons, an honest **vs-buy-and-hold
+  scoreboard**, a strategy-mode switcher, and P/L that includes open positions.
+- **Conservative (DCA) mode** — `DcaAccumulateStrategy`: buys a small fixed amount
+  of each coin weekly and holds (new `voltra-dca` bot on :8083). Honest
+  vs-buy-and-hold report in docs/dca-report.md; DCA is scoped as a separate
+  lower-risk strategy category in CLAUDE.md.
+- **Research: Alpha-Zoo / Vibe-Trading review** — tested WorldQuant Alpha101 on the
+  Kraken basket; rejected (no fee-surviving edge on 4 coins). docs/alpha-zoo-report.md.
 - **Official Voltra branding** — logo/favicon kit, README banner, GitHub Pages
   site (docs/index.html), ROADMAP. Tauri app icons replaced with branded set.
 

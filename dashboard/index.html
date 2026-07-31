@@ -105,7 +105,7 @@
   <!-- Details -->
   <section class="grid-kpi" style="margin-top:16px">
     <div class="card" style="padding:16px"><p class="muted" style="margin:0;font-size:12px">Balance</p><p id="kpi-balance" style="margin:4px 0 0;font-size:19px;font-weight:700">—</p></div>
-    <div class="card" style="padding:16px"><p class="muted" style="margin:0;font-size:12px">Closed P/L</p><p id="kpi-pnl" style="margin:4px 0 0;font-size:19px;font-weight:700">—</p></div>
+    <div class="card" style="padding:16px"><p class="muted" style="margin:0;font-size:12px">P/L (incl. open)</p><p id="kpi-pnl" style="margin:4px 0 0;font-size:19px;font-weight:700">—</p></div>
     <div class="card" style="padding:16px"><p class="muted" style="margin:0;font-size:12px">Trades (W/L)</p><p id="kpi-trades" style="margin:4px 0 0;font-size:19px;font-weight:700">—</p></div>
     <div class="card" style="padding:16px"><p class="muted" style="margin:0;font-size:12px">Max drawdown</p><p id="kpi-dd" style="margin:4px 0 0;font-size:19px;font-weight:700">—</p></div>
   </section>
@@ -222,7 +222,7 @@ async function refresh() {
     $("dash-error").classList.add("hidden");
     const bh = await buyHoldReturn(profit);
     renderCockpit(cfg, profit, balance, bh);
-    renderKpis(profit, balance);
+    renderKpis(profit, balance, status);
     renderDaily(daily);
     renderWhitelist(whitelist);
     renderTrades(status);
@@ -268,9 +268,13 @@ function renderCockpit(cfg, profit, balance, bh) {
   }
 }
 
-function renderKpis(profit, balance) {
+function renderKpis(profit, balance, status) {
   $("kpi-balance").textContent = fmtUsd(balance.total_bot ?? balance.total);
-  const pnl = profit.profit_closed_coin ?? 0;
+  // Total P/L = realized (closed) + unrealized (open positions). Without the
+  // open piece a hold/DCA bot always reads $0 even while it's up or down.
+  const closed = profit.profit_closed_coin ?? 0;
+  const openPnl = (status || []).reduce((s, t) => s + (t.profit_abs || 0), 0);
+  const pnl = closed + openPnl;
   const pnlEl = $("kpi-pnl");
   pnlEl.textContent = fmtUsd(pnl);
   pnlEl.className = pnl >= 0 ? "ok" : "bad";
