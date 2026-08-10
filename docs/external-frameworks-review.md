@@ -61,11 +61,54 @@ basket.
 **REJECT.** Every lookback loses to buy-and-hold (+403% basket); buying the most-
 oversold coin in a trending 4-coin basket is catching knives.
 
+## 3. CCXT (ccxt/ccxt)
+
+**What it is:** the MIT-licensed unified exchange API library (100+ venues). We
+already use it — **Freqtrade runs on CCXT under the hood**, and CLAUDE.md mandates
+"use Freqtrade/CCXT abstractions." So there's nothing to "adopt"; it's already the
+foundation.
+
+**What we DID implement with it** — the useful direct application: measure the
+*real* slippage on our pairs instead of guessing. `research/execution/
+measure_slippage.py` pulls Kraken's live order book via CCXT (public, read-only)
+and computes spread + fill slippage to market-buy a given size:
+
+| pair | spread | buy $25 | buy $1000 |
+|---|---|---|---|
+| BTC/USD | 0.0 bps | 0.0 | 0.0 |
+| ETH/USD | 0.1 bps | 0.0 | 0.0 |
+| SOL/USD | 1.3 bps | 0.7 | 0.7 |
+| XRP/USD | 0.9 bps | 0.4 | 0.9 |
+
+Worst observed: **1.3 bps** — vs. the **5 bps (0.05%)** our backtests assume. So
+**our slippage assumption is conservative**, and the edge weakness is *not* a
+hidden execution cost; the signal itself is thin (confirming execution_stress.py).
+A genuinely useful, honest result — and it closes the loop on the Nautilus lesson.
+
+## 4. Microsoft Qlib (microsoft/qlib)
+
+**What it is:** an MIT-licensed AI/ML quant *platform* (25+ model architectures,
+Alpha158/Alpha360 factor libraries, RL execution, PIT database). **Equity-focused
+(A-shares / US stocks), no native crypto.**
+
+**Verdict: do NOT import.**
+- It's a framework, like Nautilus/Vibe-Trading — infrastructure, not edge.
+- Its factor libraries (Alpha158/360) are the **same cross-sectional family we
+  already tested and rejected** (Alpha101, docs/alpha-zoo-report.md).
+- Qlib's own premise is a large liquid universe (800+ names) for cross-sectional
+  learning; the source itself notes it "transfers poorly" to a handful of assets.
+  On our 4-coin basket the breadth is nil and overfitting risk is severe.
+- The one forward idea it shares with our roadmap — ML *on factors* as a signal
+  filter (our "FreqAI filter" note) — still needs a factor edge to filter, which
+  every test says we don't have. Not worth building against 4 coins.
+
 ## Rejected-experiments ledger (running)
 
 Kronos · Alpha101/Qlib zoo · CandlePattern · 200d-MA regime filter · Fear&Greed
 gate · **mean-reversion** — all tested on our data, none cleared the fee-surviving
-95% edge gate. NautilusTrader and Vibe-Trading frameworks: not imported (sprawl,
-no edge). The consistent finding across every external source: **the bottleneck is
-edge and evidence, not tooling, models, or more signals.** The needle only moves
-with the 30-day dry-run.
+95% edge gate. Frameworks not imported (sprawl, no edge): NautilusTrader,
+Vibe-Trading, **Qlib**. Already the foundation / used directly: **CCXT** (and we
+used it to measure real slippage = conservative, so cost isn't the problem). The
+consistent finding across every external source: **the bottleneck is edge and
+evidence, not tooling, models, or more signals.** The needle only moves with the
+30-day dry-run.
