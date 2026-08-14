@@ -60,6 +60,29 @@ For a passive, low-stress user, **DCA/hold is still the right core** — it neve
 draws down 60% relative to just holding. XS-momentum is the "active sleeve for
 someone who can stomach the swings," and it's the first such thing worth building.
 
+## Built & verified (2026-08-14)
+
+Ported to a real Freqtrade strategy (`CrossSectionalMomentumStrategy`, config
+`config.xsmom.json`, 16-pair basket, top-3 by 14d, weekly Monday rebalance,
+MaxDrawdown circuit-breaker + −30% catastrophe stop). The critical check — does
+the Freqtrade backtest reproduce the research edge *without* look-ahead:
+
+| Freqtrade backtest (2023→2026, fee 0.1%/side) | value |
+|---|---|
+| Trades | 262 |
+| Total profit | **+1607%** (research: +1215%; same ballpark) |
+| Profit factor | 1.47 · Calmar 71 |
+| Win rate | 46.6% (momentum: fewer, bigger wins) |
+| Max drawdown | **−64.7%** (matches the ~−60% warning) |
+
+Plausible, realistic numbers (no absurd 90% win-rate that a look-ahead bug
+produces) → the port is sound. Ranking math unit-tested
+(`tests/test_strategies.py::test_xsm_*`, 3 cases; 30 tests pass).
+
+**Live dry-run started**: `voltra-xsmom` bot (:8084, dry-run), in the cockpit's
+mode switcher as "Momentum — top-3 of 16". First trades on the next Monday
+rebalance; ~2 months of fills will confirm (or refute) the backtested edge live.
+
 ## Scripts
 `research/systematic/factor_premia_test.py` (walk-forward across premia) ·
 `xsmom_robustness.py` (per-year + drawdown) · fee/ex-2024 stress inline.

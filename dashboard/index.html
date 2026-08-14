@@ -56,6 +56,7 @@
     <p class="muted" style="margin:8px 0 0;font-size:14px">Connect to your bot</p>
     <label>Mode / bot</label>
     <select id="in-api">
+      <option value="http://127.0.0.1:8084">Momentum — top-3 of 16 (the validated lead)</option>
       <option value="http://127.0.0.1:8083">Conservative — DCA (accumulate &amp; hold)</option>
       <option value="http://127.0.0.1:8080">Aggressive — TrendBreak (BTC/ETH/SOL/XRP)</option>
       <option value="http://127.0.0.1:8081">Lead-lag — SolCross (BTC/ETH → SOL)</option>
@@ -75,6 +76,7 @@
   <header style="display:flex;flex-wrap:wrap;align-items:center;gap:12px">
     <img src="voltra-logo-inverted.png" alt="Voltra" style="height:30px">
     <select id="mode-switch" onchange="switchBot(this.value)" style="width:auto">
+      <option value="http://127.0.0.1:8084">Momentum — top-3 of 16</option>
       <option value="http://127.0.0.1:8083">Conservative — DCA</option>
       <option value="http://127.0.0.1:8080">Aggressive — TrendBreak</option>
       <option value="http://127.0.0.1:8081">Lead-lag — SolCross</option>

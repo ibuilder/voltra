@@ -35,7 +35,8 @@ DEFAULT_TARGETS = (
     "voltra-dry=http://freqtrade:8080,"
     "voltra-cross=http://freqtrade-cross:8080,"
     "voltra-webhook=http://freqtrade-webhook:8080,"
-    "voltra-dca=http://freqtrade-dca:8080"
+    "voltra-dca=http://freqtrade-dca:8080,"
+    "voltra-xsmom=http://freqtrade-xsmom:8080"
 )
 TARGETS = [
     tuple(t.split("=", 1))

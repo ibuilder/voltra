@@ -324,3 +324,29 @@ def test_dca_no_double_buy_once_caught_up():
 
 def test_dca_ignores_future_open():
     assert dca_buys_due(_T0, _T0 - pd.Timedelta(hours=1), 0, _WK) == 0
+
+
+# --- CrossSectionalMomentumStrategy (ranking math) -------------------------
+
+xsm = _load_pure_functions("CrossSectionalMomentumStrategy.py", "CrossSectionalMomentumStrategy")
+xsm_momentum = xsm["momentum"]
+xsm_top_n_mask = xsm["top_n_mask"]
+xsm_is_rebalance = xsm["is_rebalance"]
+
+
+def test_xsm_momentum_trailing_return():
+    close = pd.Series([100.0] * 10 + [110.0])  # +10% over a 10-bar lookback
+    assert abs(xsm_momentum(close, lookback_bars=10).iloc[-1] - 0.10) < 1e-9
+
+
+def test_xsm_top_n_selects_highest_momentum():
+    panel = pd.DataFrame({"A": [0.1, 0.5], "B": [0.2, 0.1], "C": [0.3, 0.9], "D": [-0.1, 0.2]})
+    mask = xsm_top_n_mask(panel, n=2)
+    assert list(mask.iloc[0]) == [False, True, True, False]   # top2: C(.3), B(.2)
+    assert list(mask.iloc[1]) == [True, False, True, False]   # top2: C(.9), A(.5)
+
+
+def test_xsm_rebalance_only_monday_midnight():
+    dts = pd.Series(pd.to_datetime(
+        ["2024-01-01 00:00", "2024-01-01 01:00", "2024-01-02 00:00"], utc=True))  # Mon00, Mon01, Tue00
+    assert list(xsm_is_rebalance(dts)) == [True, False, False]
