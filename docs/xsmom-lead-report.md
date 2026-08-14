@@ -42,19 +42,51 @@ market can't fake skill), 2023-01 → 2026-03:
   that died aren't in the set, which flatters any momentum backtest. Needs
   survivorship-corrected data to fully trust.
 
-## Verdict & next steps
+## ⚠️ Survivorship correction (2026-08-14) — materially tempers the above
 
-This is the **best outcome the hunt produced** — a genuine, fee-surviving,
-significant cross-sectional-momentum edge, exactly where the theory said to look
-once we had breadth. It earns promotion, not deployment:
+The headline +1215% was measured on 16 coins that *survived* to today, including
+new-listing pumpers (WLD 2025-03, CELO/BNB 2025-04, SUI 2023-05). Momentum
+backtests are especially flattered by both. `xsmom_survivorship.py` re-ran the
+exact strategy on survivorship-safer universes:
 
-1. **Port to a Freqtrade strategy** (top-3 by 14d, weekly rebalance, the 16-pair
-   basket) with a drawdown circuit-breaker.
-2. **Harder validation:** multi-fold walk-forward, survivorship-corrected data,
-   and Monte Carlo on the realized trades.
-3. **Dry-run** — now feasible (enough trades) to confirm in ~2 months.
-4. Only after all that, and only as a **small risk-managed sleeve** (not the
-   passive core), consider tiny live capital.
+| universe | strat vs hold | excess Sharpe | P(excess>0) |
+|---|---|---|---|
+| full 16 | +1215% vs +165% | 1.40 | 99% |
+| full-window 12 (drop late-listers) | +757% vs +282% | 0.80 | 92% |
+| **majors 9** (established, liquid) | +158% vs **+250%** | **−0.16** | **38%** |
+
+**The edge halves when the new-listing pumps are removed, and disappears entirely
+on liquid majors** (it underperforms buy-and-hold there). So the signal lives almost
+entirely in **newer, smaller alts** — exactly where survivorship bias is worst,
+liquidity thinnest, and real slippage highest. This is a large downgrade: much of
+the apparent edge is new-listing / small-cap selection, not a robust momentum
+premium a retail account can safely harvest.
+
+## Verdict & next steps (revised after survivorship correction)
+
+XS-momentum is still the **best lead the hunt produced** — the only signal to beat
+buy-and-hold out-of-sample with a broad basket — but the survivorship correction
+downgrades it from "promote toward a live sleeve" to **"observe honestly in dry-run;
+do not commit real money."** The concrete reads:
+
+- On **liquid majors it has no edge** (underperforms holding). Whatever edge exists
+  is in **small/new-cap alts**, where the backtest is least trustworthy (dead coins
+  invisible) and real slippage is worst — the CCXT measurement covered majors, not
+  thin alts.
+- So the backtest almost certainly **overstates** the live, tradable edge.
+
+Therefore the honest plan is:
+
+1. **Built** (done): Freqtrade strategy + `voltra-xsmom` dry-run bot on the 16-pair
+   basket, with a drawdown circuit-breaker.
+2. **Let the dry-run be the arbiter** — real fills on the *current* universe, real
+   slippage on the small caps, no survivorship. Feed those into Monte Carlo as they
+   accrue. This is now the decisive test, precisely because the backtest is
+   survivorship-suspect.
+3. **Do NOT plan live capital** on the backtest. Only reconsider if the *live*
+   dry-run shows a genuine, liquidity-aware edge over a couple of months.
+4. Expect the likely honest outcome to land between "small real edge in alts" and
+   "zero after real costs" — the majors result says be skeptical.
 
 For a passive, low-stress user, **DCA/hold is still the right core** — it never
 draws down 60% relative to just holding. XS-momentum is the "active sleeve for
