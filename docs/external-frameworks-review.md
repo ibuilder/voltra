@@ -102,13 +102,55 @@ Alpha158/Alpha360 factor libraries, RL execution, PIT database). **Equity-focuse
   filter (our "FreqAI filter" note) — still needs a factor edge to filter, which
   every test says we don't have. Not worth building against 4 coins.
 
+## 5. Hummingbot (hummingbot/hummingbot)
+
+**What it is:** an Apache-2.0 framework for **market-making and arbitrage** —
+liquidity provision, not directional trading. Core strategies: pure/Avellaneda/
+cross-exchange market making, AMM arb. Supports Kraken spot.
+
+**Verdict: do NOT import — decided by our own measured data.** Market making only
+profits when the captured spread beats fees: `net/cycle ~= spread - 2 x maker_fee`.
+We measured Kraken's live spreads with CCXT (`research/execution/mm_economics.py`):
+
+| pair | live spread | | fee tier | maker/side | net/cycle (best spread) |
+|---|---|---|---|---|---|
+| BTC/USD | 0.5 bps | | $0 (retail) | 25 bps | **−48.7 bps** |
+| ETH/USD | 0.8 bps | | $250k/mo | 10 bps | −18.7 bps |
+| SOL/USD | 1.3 bps | | $1M/mo | 6 bps | −10.7 bps |
+| XRP/USD | 0.1 bps | | $10M/mo | 0 bps | +1.3 bps |
+
+The spreads are 0.1–1.3 bps *precisely because* professional MMs paying ~0 fees
+already compressed them. To break even we'd need spread > 2× our maker fee
+(>50 bps at retail; >12 bps even at $1M/mo). We have ~1 bps. **Every fee tier a
+retail account can reach is deeply negative.** Arbitrage needs multiple funded
+exchanges we don't run (Kraken-only). Hummingbot is a fine MM framework — for a
+different game, at institutional fee tiers, than ours.
+
+## 6. backtesting.py (kernc/backtesting.py)
+
+**What it is:** a lightweight **single-instrument** OHLC backtester (AGPL-3.0) —
+simple API, fast, built-in optimizer, interactive plots.
+
+**Verdict: do NOT adopt — a downgrade + duplicate for us.**
+- We already have Freqtrade backtesting: multi-pair crypto, realistic fee/slippage
+  modeling, hyperopt, walk-forward, and live-trading parity. backtesting.py is
+  single-asset with simpler execution modeling — the *opposite* of the execution-
+  realism lesson (§1, §3).
+- Our quick single-asset research niche is already covered by host pandas scripts
+  (`alpha_test.py`, `meanrev_test.py`, `execution_stress.py`) — no Docker needed.
+- **AGPL-3.0** is aggressive copyleft and conflicts with our MIT repo.
+- Its only extras (interactive plots, optimizer) we don't need — we have hyperopt,
+  our own analysis, and the cockpit.
+
 ## Rejected-experiments ledger (running)
 
 Kronos · Alpha101/Qlib zoo · CandlePattern · 200d-MA regime filter · Fear&Greed
 gate · **mean-reversion** — all tested on our data, none cleared the fee-surviving
-95% edge gate. Frameworks not imported (sprawl, no edge): NautilusTrader,
-Vibe-Trading, **Qlib**. Already the foundation / used directly: **CCXT** (and we
-used it to measure real slippage = conservative, so cost isn't the problem). The
+95% edge gate. Frameworks not imported: NautilusTrader,
+Vibe-Trading, **Qlib** (sprawl/no edge), **Hummingbot** (market-making is
+structurally unprofitable at retail fees — proven with measured spreads),
+**backtesting.py** (downgrade + duplicate + AGPL). Already the foundation / used
+directly: **CCXT** (used it to measure real slippage AND market-making economics). The
 consistent finding across every external source: **the bottleneck is edge and
 evidence, not tooling, models, or more signals.** The needle only moves with the
 30-day dry-run.
