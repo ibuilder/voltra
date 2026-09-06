@@ -10,6 +10,8 @@ milestones (pre-1.0, no semantic-version guarantees yet).
 - **Operator console checklist** — `docs/operator-console.md` (local snapshot →
   Caddy deploy → remote TLS probe). `scripts/check_console.py` keeps Caddy
   slugs, compose ports, deploy health waits, and the desktop client aligned.
+- **Controller browser preview** — `desktop/ui/index.html?preview=1` mocks Tauri
+  invoke so the window can be clicked through without WebKitGTK.
 - **Desktop live snapshot** — Tauri controller JWT-auths to localhost
   Freqtrade bots (creds from `.env`) and shows a fleet strip plus balance,
   closed+open P&L, W/L, drawdown, and open positions. Tokens stay in Rust;

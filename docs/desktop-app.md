@@ -39,6 +39,16 @@ Snapshot-client unit tests (no GTK / Docker needed):
 cargo test --manifest-path desktop/src-tauri/freqtrade-client/Cargo.toml
 ```
 
+Browser preview of the window (mocked Tauri invoke — no WebKitGTK):
+
+```
+cd desktop/ui
+python3 -m http.server 4173 --bind 127.0.0.1
+# open http://127.0.0.1:4173/index.html?preview=1
+```
+
+The `?preview=1` flag loads `preview-mock.js`. The real app never sets that query.
+
 ## Release (what's done vs. what's left)
 
 **Already done** (in the repo now):
