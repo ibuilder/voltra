@@ -97,7 +97,12 @@ reachable at the per-bot routes:
 voltra-dry|https://trade.yourdomain.com/bot/dry
 voltra-cross|https://trade.yourdomain.com/bot/cross
 voltra-webhook|https://trade.yourdomain.com/bot/webhook
+voltra-dca|https://trade.yourdomain.com/bot/dca
+voltra-xsmom|https://trade.yourdomain.com/bot/xsmom
 ```
+
+The **Voltra Controller** desktop app can use the same HTTPS origin in
+**Remote VPS** mode (read-only fleet / P&L; it never flips `dry_run`).
 API username `voltra`, and the password from `.env` (prefer defining
 `VOLTRA_API_PASSWORD` in DreamHost's `wp-config.php`).
 

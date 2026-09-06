@@ -109,6 +109,15 @@ Let's Encrypt cert for `VOLTRA_DOMAIN` within a minute.
 
 Visit **https://trade.yourdomain.com** → the dashboard. FreqUI is at
 `/frequi`. TradingView webhooks (if used) go to `/webhook/webhook`.
+Per-bot REST (WordPress plugin + Voltra Controller **Remote VPS** mode):
+
+```
+https://trade.yourdomain.com/bot/dry
+https://trade.yourdomain.com/bot/cross
+https://trade.yourdomain.com/bot/webhook
+https://trade.yourdomain.com/bot/dca
+https://trade.yourdomain.com/bot/xsmom
+```
 
 ## 8. Start on boot
 

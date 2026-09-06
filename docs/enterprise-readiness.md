@@ -38,7 +38,9 @@ treated as a security incident.
                   │freqtrade-  │ ┌──▼───────────┐
                   │cross(bot#2)│ │freqtrade-    │
                   └────────────┘ │webhook(bot#3)│
-                                 └──────────────┘
+                  │freqtrade-  │ └──────────────┘
+                  │dca / xsmom │  /bot/dca  /bot/xsmom
+                  └────────────┘
    sidecars: reporter (divergence) · healthwatch (alerts+tripwire) · backup
 ```
 

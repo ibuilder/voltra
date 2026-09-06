@@ -10,8 +10,8 @@ enables live trading.
 
 - One `Voltra Controller.exe` (NSIS installer + MSI). Double-click installs.
 - Tray icon: Start stack / Stop stack / Open Dashboard / Show / Quit.
-- Window: service list, autostart toggle, project-folder picker, **live
-  snapshot** (JWT to a localhost Freqtrade bot — P&L + open positions),
+- Window: **Local stack** or **Remote VPS** mode, service list, autostart,
+  project-folder picker, **live fleet snapshot** (JWT — P&L + open positions),
   **Kraken API key entry** (OS-encrypted).
 - Auto-updates from signed GitHub Releases (prompts before installing).
 
@@ -100,14 +100,20 @@ installed apps see the update (signature-verified, prompt before install).
 
 ### Live snapshot (positions / P&L)
 
-- The controller JWT-auths to **localhost** bots (`127.0.0.1:8080–8084`) using
-  `FREQTRADE__API_SERVER__USERNAME` / `PASSWORD` from the project `.env`. The
-  access token never leaves the Rust process. A fleet strip shows every bot;
+- **Local:** JWT to `127.0.0.1:8080–8084` using `.env` WebUI creds.
+- **Remote VPS:** JWT to `https://<your-domain>/bot/{dry,dca,xsmom,cross,webhook}`
+  (Caddy). Origin must be HTTPS on a public hostname (no IPs, no http, no
+  userinfo). WebUI user/password live in the OS keychain, not a file.
+- The access token never leaves the Rust process. A fleet strip shows every bot;
   click one for P&L and open positions.
 - It only reads `/show_config`, `/profit`, `/balance`, and `/status`. It does
   not start/stop the bot via REST and **never** writes `dry_run`.
 - If a bot reports `dry_run: false`, the window shows a **LIVE TRIPWIRE**
   banner. That is display-only — go-live remains a human-only config edit.
+- Remote mode does **not** start Docker on the laptop. 24/7 trading stays on
+  the VPS; the desktop is a console. See
+  [deploy-oracle-free.md](deploy-oracle-free.md) /
+  [deploy-hetzner.md](deploy-hetzner.md).
 
 ## Limits (honest)
 

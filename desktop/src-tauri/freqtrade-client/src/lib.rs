@@ -20,12 +20,57 @@ const LOGIN_PATH: &str = "/api/v1/token/login";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(8);
 const TOKEN_TTL: Duration = Duration::from_secs(10 * 60);
 
-/// Hard allowlist — controller only talks to the local Docker-mapped APIs.
+/// Hard allowlist — local Docker-mapped APIs.
 const ALLOWED_PORTS: &[u16] = &[8080, 8081, 8082, 8083, 8084];
+
+/// Caddy `handle_path /bot/<slug>/*` names on a VPS. Nothing else is reachable.
+const REMOTE_SLUGS: &[&str] = &["xsmom", "dca", "dry", "cross", "webhook"];
+
+#[derive(Clone, Copy)]
+struct BotDef {
+    slug: &'static str,
+    label: &'static str,
+    strategy: &'static str,
+    local_port: u16,
+}
+
+const BOT_DEFS: &[BotDef] = &[
+    BotDef {
+        slug: "xsmom",
+        label: "Momentum — top-3 of 16",
+        strategy: "CrossSectionalMomentumStrategy",
+        local_port: 8084,
+    },
+    BotDef {
+        slug: "dca",
+        label: "Conservative — DCA",
+        strategy: "DcaAccumulateStrategy",
+        local_port: 8083,
+    },
+    BotDef {
+        slug: "dry",
+        label: "Aggressive — TrendBreak",
+        strategy: "TrendBreakStrategy",
+        local_port: 8080,
+    },
+    BotDef {
+        slug: "cross",
+        label: "Lead-lag — SolCross",
+        strategy: "SolCrossSignalStrategy",
+        local_port: 8081,
+    },
+    BotDef {
+        slug: "webhook",
+        label: "Experimental — webhook",
+        strategy: "WebhookRelayStrategy",
+        local_port: 8082,
+    },
+];
 
 #[derive(Clone, Serialize)]
 pub struct BotInfo {
     pub url: String,
+    pub slug: String,
     pub label: String,
     pub strategy: String,
 }
@@ -108,58 +153,136 @@ pub struct FleetEntry {
 }
 
 pub fn catalog() -> Vec<BotInfo> {
-    vec![
-        BotInfo {
-            url: "http://127.0.0.1:8084".into(),
-            label: "Momentum — top-3 of 16".into(),
-            strategy: "CrossSectionalMomentumStrategy".into(),
-        },
-        BotInfo {
-            url: "http://127.0.0.1:8083".into(),
-            label: "Conservative — DCA".into(),
-            strategy: "DcaAccumulateStrategy".into(),
-        },
-        BotInfo {
-            url: "http://127.0.0.1:8080".into(),
-            label: "Aggressive — TrendBreak".into(),
-            strategy: "TrendBreakStrategy".into(),
-        },
-        BotInfo {
-            url: "http://127.0.0.1:8081".into(),
-            label: "Lead-lag — SolCross".into(),
-            strategy: "SolCrossSignalStrategy".into(),
-        },
-        BotInfo {
-            url: "http://127.0.0.1:8082".into(),
-            label: "Experimental — webhook".into(),
-            strategy: "WebhookRelayStrategy".into(),
-        },
-    ]
+    catalog_local()
 }
 
-/// Only `http://127.0.0.1:<allowed-port>` — no LAN, no HTTPS-to-nowhere, no
-/// user-supplied remote hosts from the webview.
+pub fn catalog_local() -> Vec<BotInfo> {
+    BOT_DEFS
+        .iter()
+        .map(|b| BotInfo {
+            url: format!("http://127.0.0.1:{}", b.local_port),
+            slug: b.slug.into(),
+            label: b.label.into(),
+            strategy: b.strategy.into(),
+        })
+        .collect()
+}
+
+/// Build the Caddy-fronted fleet for a validated `https://host` origin.
+pub fn catalog_remote(origin: &str) -> Result<Vec<BotInfo>, String> {
+    let origin = normalize_remote_origin(origin)?;
+    Ok(BOT_DEFS
+        .iter()
+        .map(|b| BotInfo {
+            url: format!("{origin}/bot/{}", b.slug),
+            slug: b.slug.into(),
+            label: b.label.into(),
+            strategy: b.strategy.into(),
+        })
+        .collect())
+}
+
+/// `https://hostname` only — no path, userinfo, IP literal, or non-443 port.
+pub fn normalize_remote_origin(origin: &str) -> Result<String, String> {
+    let raw = origin.trim().trim_end_matches('/');
+    let parsed = url::Url::parse(raw).map_err(|_| {
+        "remote origin must look like https://trade.example.com".to_string()
+    })?;
+    if parsed.scheme() != "https" {
+        return Err("remote origin must be https:// (TLS)".into());
+    }
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("remote origin must not include credentials".into());
+    }
+    if parsed.query().is_some() || parsed.fragment().is_some() {
+        return Err("remote origin must not include query or fragment".into());
+    }
+    if parsed.path() != "/" && !parsed.path().is_empty() {
+        return Err("enter the site origin only (no /bot/… path)".into());
+    }
+    if let Some(port) = parsed.port() {
+        if port != 443 {
+            return Err("remote origin must use HTTPS on port 443".into());
+        }
+    }
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| "remote origin is missing a hostname".to_string())?;
+    if !is_public_hostname(host) {
+        return Err("remote origin must be a public hostname (not localhost or a raw IP)".into());
+    }
+    Ok(format!("https://{}", host.to_ascii_lowercase()))
+}
+
+fn is_public_hostname(host: &str) -> bool {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    if host.is_empty() || host == "localhost" || host.ends_with(".localhost") {
+        return false;
+    }
+    if host.parse::<std::net::IpAddr>().is_ok() {
+        return false;
+    }
+    // Require a real domain (dot) so LAN short names and IPs-as-text don't slip in.
+    host.contains('.') && !host.starts_with('.') && !host.ends_with('.')
+}
+
+/// Local `http://127.0.0.1:<port>` **or** `https://host/bot/<slug>`.
 pub fn allowed_bot_url(url: &str) -> Result<String, String> {
     let url = url.trim().trim_end_matches('/');
     let parsed = url::Url::parse(url).map_err(|_| "invalid bot URL".to_string())?;
-    if parsed.scheme() != "http" {
-        return Err("bot URL must be http://127.0.0.1".into());
-    }
-    match parsed.host_str() {
-        Some("127.0.0.1") | Some("localhost") => {}
-        _ => return Err("bot URL must be localhost (127.0.0.1)".into()),
-    }
-    if parsed.path() != "/" && !parsed.path().is_empty() {
-        return Err("bot URL must not include a path".into());
-    }
     if parsed.query().is_some() || parsed.fragment().is_some() {
         return Err("bot URL must not include query or fragment".into());
     }
-    let port = parsed.port().ok_or_else(|| "bot URL must include a port".to_string())?;
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("bot URL must not include credentials".into());
+    }
+    match parsed.scheme() {
+        "http" => allowed_local_url(&parsed),
+        "https" => allowed_remote_bot_url(&parsed),
+        _ => Err("bot URL must be http://127.0.0.1 or https://<domain>/bot/<slug>".into()),
+    }
+}
+
+fn allowed_local_url(parsed: &url::Url) -> Result<String, String> {
+    match parsed.host_str() {
+        Some("127.0.0.1") | Some("localhost") => {}
+        _ => return Err("http bot URL must be localhost (127.0.0.1)".into()),
+    }
+    if parsed.path() != "/" && !parsed.path().is_empty() {
+        return Err("local bot URL must not include a path".into());
+    }
+    let port = parsed
+        .port()
+        .ok_or_else(|| "local bot URL must include a port".to_string())?;
     if !ALLOWED_PORTS.contains(&port) {
         return Err(format!("port {port} is not a known local bot"));
     }
     Ok(format!("http://127.0.0.1:{port}"))
+}
+
+fn allowed_remote_bot_url(parsed: &url::Url) -> Result<String, String> {
+    if let Some(port) = parsed.port() {
+        if port != 443 {
+            return Err("remote bot URL must use HTTPS on port 443".into());
+        }
+    }
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| "remote bot URL is missing a hostname".to_string())?;
+    if !is_public_hostname(host) {
+        return Err("remote bot URL must be a public hostname".into());
+    }
+    let path = parsed.path().trim_end_matches('/');
+    let Some(slug) = path.strip_prefix("/bot/") else {
+        return Err("remote bot URL must be https://<domain>/bot/<slug>".into());
+    };
+    if slug.contains('/') || !REMOTE_SLUGS.contains(&slug) {
+        return Err(format!("unknown remote bot slug '{slug}'"));
+    }
+    Ok(format!(
+        "https://{}/bot/{slug}",
+        host.to_ascii_lowercase()
+    ))
 }
 
 fn peek_env_creds(env_text: &str) -> (Option<String>, Option<String>) {
@@ -237,7 +360,7 @@ fn login(base: &str, user: &str, pass: &str) -> Result<String, String> {
         Ok(r) => r,
         Err(ureq::Error::Status(401, _)) => {
             return Err(
-                "login failed (HTTP 401) — check FREQTRADE__API_SERVER__PASSWORD in .env".into(),
+                "login failed (HTTP 401) — check the FreqUI / WebUI password".into(),
             );
         }
         Err(ureq::Error::Status(code, _)) => {
@@ -462,20 +585,44 @@ pub fn stack_ready_hint(
 }
 
 pub fn fetch_fleet(project_dir: &Path) -> Vec<FleetEntry> {
-    catalog()
-        .into_iter()
-        .map(|bot| FleetEntry {
-            snapshot: fetch_snapshot(project_dir, &bot.url)
-                .unwrap_or_else(|e| BotSnapshot::unreachable(&bot.url, e)),
-            label: bot.label,
-        })
-        .collect()
+    fetch_fleet_from(&catalog_local(), &load_creds(project_dir))
+}
+
+pub fn fetch_fleet_from(
+    bots: &[BotInfo],
+    creds: &Result<(String, String), String>,
+) -> Vec<FleetEntry> {
+    match creds {
+        Err(e) => bots
+            .iter()
+            .map(|bot| FleetEntry {
+                snapshot: BotSnapshot::unreachable(&bot.url, e.clone()),
+                label: bot.label.clone(),
+            })
+            .collect(),
+        Ok((user, pass)) => bots
+            .iter()
+            .map(|bot| FleetEntry {
+                snapshot: fetch_snapshot_with_creds(&bot.url, user, pass)
+                    .unwrap_or_else(|e| BotSnapshot::unreachable(&bot.url, e)),
+                label: bot.label.clone(),
+            })
+            .collect(),
+    }
 }
 
 pub fn fetch_snapshot(project_dir: &Path, url: &str) -> Result<BotSnapshot, String> {
-    let base = allowed_bot_url(url)?;
     let (user, pass) = load_creds(project_dir)?;
-    match fetch_snapshot_authed(&base, &user, &pass) {
+    fetch_snapshot_with_creds(url, &user, &pass)
+}
+
+pub fn fetch_snapshot_with_creds(
+    url: &str,
+    user: &str,
+    pass: &str,
+) -> Result<BotSnapshot, String> {
+    let base = allowed_bot_url(url)?;
+    match fetch_snapshot_authed(&base, user, pass) {
         Ok(snap) => Ok(snap),
         Err(e) => Ok(BotSnapshot::unreachable(&base, e)),
     }
@@ -504,12 +651,54 @@ mod tests {
     }
 
     #[test]
-    fn allowlist_rejects_remote_and_unknown_ports() {
+    fn allowlist_rejects_remote_http_and_unknown_ports() {
         assert!(allowed_bot_url("http://example.com:8080").is_err());
         assert!(allowed_bot_url("https://127.0.0.1:8080").is_err());
         assert!(allowed_bot_url("http://127.0.0.1:22").is_err());
         assert!(allowed_bot_url("http://10.0.0.5:8080").is_err());
         assert!(allowed_bot_url("http://127.0.0.1:8080/api/v1").is_err());
+    }
+
+    #[test]
+    fn normalize_origin_requires_https_public_host() {
+        assert_eq!(
+            normalize_remote_origin("https://Trade.Example.COM/").unwrap(),
+            "https://trade.example.com"
+        );
+        assert!(normalize_remote_origin("http://trade.example.com").is_err());
+        assert!(normalize_remote_origin("https://127.0.0.1").is_err());
+        assert!(normalize_remote_origin("https://localhost").is_err());
+        assert!(normalize_remote_origin("https://8.8.8.8").is_err());
+        assert!(normalize_remote_origin("https://user:pw@trade.example.com").is_err());
+        assert!(normalize_remote_origin("https://trade.example.com/bot/dry").is_err());
+        assert!(normalize_remote_origin("https://trade.example.com:8443").is_err());
+    }
+
+    #[test]
+    fn allowlist_accepts_caddy_bot_paths() {
+        assert_eq!(
+            allowed_bot_url("https://trade.example.com/bot/dry/").unwrap(),
+            "https://trade.example.com/bot/dry"
+        );
+        assert!(allowed_bot_url("https://trade.example.com/bot/xsmom").is_ok());
+        assert!(allowed_bot_url("https://trade.example.com/bot/dca").is_ok());
+    }
+
+    #[test]
+    fn allowlist_rejects_unknown_remote_slugs_and_http() {
+        assert!(allowed_bot_url("https://trade.example.com/bot/admin").is_err());
+        assert!(allowed_bot_url("https://trade.example.com/frequi").is_err());
+        assert!(allowed_bot_url("https://trade.example.com/bot/dry/api/v1").is_err());
+        assert!(allowed_bot_url("http://trade.example.com/bot/dry").is_err());
+        assert!(allowed_bot_url("https://user:pw@trade.example.com/bot/dry").is_err());
+    }
+
+    #[test]
+    fn remote_catalog_uses_caddy_slugs() {
+        let bots = catalog_remote("https://trade.example.com").unwrap();
+        assert_eq!(bots.len(), 5);
+        assert!(bots.iter().any(|b| b.url == "https://trade.example.com/bot/xsmom"));
+        assert!(bots.iter().all(|b| b.url.starts_with("https://trade.example.com/bot/")));
     }
 
     #[test]

@@ -14,6 +14,10 @@ milestones (pre-1.0, no semantic-version guarantees yet).
 - **Docker health in the controller** — detects missing CLI / stopped daemon /
   wrong folder / missing `.env`, with copy-from-example and an install link.
   Login autostart waits until Docker is ready.
+- **Remote VPS console** — desktop can JWT to `https://<domain>/bot/{dry,dca,xsmom,cross,webhook}`
+  (Caddy TLS). Origin allowlisted (HTTPS, public hostname, known slugs).
+  WebUI creds in the OS keychain. Laptop Docker is not started in remote mode.
+- **Caddy** now exposes `/bot/dca` and `/bot/xsmom` alongside dry/cross/webhook.
 - **Simple cockpit dashboard** (:8899) — single-page, brand-styled: plain-English
   status, Start/Stop/Reload bot-command buttons, an honest **vs-buy-and-hold
   scoreboard**, a strategy-mode switcher, and P/L that includes open positions.

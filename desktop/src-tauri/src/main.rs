@@ -142,10 +142,76 @@ fn set_autostart(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
     if enabled { al.enable() } else { al.disable() }.map_err(|e| e.to_string())
 }
 
+fn is_remote_mode(app: &tauri::AppHandle) -> bool {
+    connection_mode(app) == "remote"
+}
+
+fn connection_mode(app: &tauri::AppHandle) -> String {
+    read_app_file(app, "connection_mode.txt").unwrap_or_else(|| "local".into())
+}
+
+fn read_app_file(app: &tauri::AppHandle, name: &str) -> Option<String> {
+    let dir = app.path().app_config_dir().ok()?;
+    let s = std::fs::read_to_string(dir.join(name)).ok()?;
+    let s = s.trim();
+    if s.is_empty() { None } else { Some(s.to_string()) }
+}
+
+fn write_app_file(app: &tauri::AppHandle, name: &str, value: &str) -> Result<(), String> {
+    let cfg = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&cfg).map_err(|e| e.to_string())?;
+    std::fs::write(cfg.join(name), value).map_err(|e| e.to_string())
+}
+
+fn remote_origin(app: &tauri::AppHandle) -> Option<String> {
+    read_app_file(app, "remote_origin.txt")
+        .and_then(|o| freqtrade::normalize_remote_origin(&o).ok())
+}
+
+fn remote_creds() -> Result<(String, String), String> {
+    let user = kr_entry("remote_webui_user")?
+        .get_password()
+        .map_err(|_| "Save the remote WebUI username and password first.".to_string())?;
+    let pass = kr_entry("remote_webui_password")?
+        .get_password()
+        .map_err(|_| "Save the remote WebUI username and password first.".to_string())?;
+    if user.trim().is_empty() || pass.trim().is_empty() {
+        return Err("Save the remote WebUI username and password first.".into());
+    }
+    Ok((user, pass))
+}
+
+fn fleet_bots(app: &tauri::AppHandle) -> Result<Vec<freqtrade::BotInfo>, String> {
+    if is_remote_mode(app) {
+        let origin = remote_origin(app).ok_or_else(|| {
+            "Set a remote origin like https://trade.example.com first.".to_string()
+        })?;
+        freqtrade::catalog_remote(&origin)
+    } else {
+        Ok(freqtrade::catalog_local())
+    }
+}
+
 #[tauri::command]
-fn open_dashboard() {
-    // Custom dashboard on :8899; falls back silently if the browser call fails.
-    let _ = open::that("http://127.0.0.1:8899");
+fn open_dashboard(app: tauri::AppHandle) {
+    let url = if is_remote_mode(&app) {
+        remote_origin(&app).unwrap_or_else(|| "http://127.0.0.1:8899".into())
+    } else {
+        "http://127.0.0.1:8899".into()
+    };
+    let _ = open::that(url);
+}
+
+#[tauri::command]
+fn open_frequi(app: tauri::AppHandle) {
+    let url = if is_remote_mode(&app) {
+        remote_origin(&app)
+            .map(|o| format!("{o}/frequi"))
+            .unwrap_or_else(|| "http://127.0.0.1:8080".into())
+    } else {
+        "http://127.0.0.1:8080".into()
+    };
+    let _ = open::that(url);
 }
 
 // ---------------------------------------------------------------------------
@@ -312,21 +378,110 @@ fn open_docker_install() {
     let _ = open::that(url);
 }
 
-#[tauri::command]
-fn bot_catalog() -> Vec<freqtrade::BotInfo> {
-    freqtrade::catalog()
+#[derive(Serialize)]
+struct ConnectionState {
+    mode: String,
+    remote_origin: String,
+    remote_user_saved: bool,
+    remote_user_hint: String,
 }
 
-/// JWT-auth to a localhost Freqtrade bot and return P&L + open positions.
-/// Credentials come from the project's `.env` (never from the webview).
+#[tauri::command]
+fn get_connection(app: tauri::AppHandle) -> ConnectionState {
+    let user = kr_entry("remote_webui_user")
+        .ok()
+        .and_then(|e| e.get_password().ok())
+        .unwrap_or_default();
+    let hint = if user.len() > 2 {
+        format!("{}…", &user[..user.len().min(3)])
+    } else if user.is_empty() {
+        String::new()
+    } else {
+        "saved".into()
+    };
+    ConnectionState {
+        mode: connection_mode(&app),
+        remote_origin: remote_origin(&app).unwrap_or_default(),
+        remote_user_saved: !user.is_empty()
+            && kr_entry("remote_webui_password")
+                .ok()
+                .and_then(|e| e.get_password().ok())
+                .is_some_and(|p| !p.is_empty()),
+        remote_user_hint: hint,
+    }
+}
+
+#[tauri::command]
+fn set_connection_mode(app: tauri::AppHandle, mode: String) -> Result<(), String> {
+    if mode != "local" && mode != "remote" {
+        return Err("mode must be local or remote".into());
+    }
+    write_app_file(&app, "connection_mode.txt", &mode)
+}
+
+#[tauri::command]
+fn set_remote_origin(app: tauri::AppHandle, origin: String) -> Result<String, String> {
+    let origin = freqtrade::normalize_remote_origin(&origin)?;
+    write_app_file(&app, "remote_origin.txt", &origin)?;
+    Ok(origin)
+}
+
+#[tauri::command]
+fn save_remote_webui(user: String, password: String) -> Result<(), String> {
+    let (user, password) = (user.trim(), password.trim());
+    if user.is_empty() || password.is_empty() {
+        return Err("Remote WebUI username and password are required.".into());
+    }
+    kr_entry("remote_webui_user")?
+        .set_password(user)
+        .map_err(|e| format!("could not save user: {e}"))?;
+    kr_entry("remote_webui_password")?
+        .set_password(password)
+        .map_err(|e| format!("could not save password: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn clear_remote_webui() -> Result<(), String> {
+    if let Ok(e) = kr_entry("remote_webui_user") {
+        let _ = e.delete_password();
+    }
+    if let Ok(e) = kr_entry("remote_webui_password") {
+        let _ = e.delete_password();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn bot_catalog(app: tauri::AppHandle) -> Result<Vec<freqtrade::BotInfo>, String> {
+    fleet_bots(&app)
+}
+
+/// JWT-auth to a Freqtrade bot and return P&L + open positions.
+/// Local: creds from `.env`. Remote: OS keychain. Never from the webview after save.
 #[tauri::command]
 fn bot_snapshot(app: tauri::AppHandle, url: String) -> Result<freqtrade::BotSnapshot, String> {
-    freqtrade::fetch_snapshot(&project_dir(&app), &url)
+    if is_remote_mode(&app) {
+        let (user, pass) = remote_creds()?;
+        freqtrade::fetch_snapshot_with_creds(&url, &user, &pass)
+    } else {
+        freqtrade::fetch_snapshot(&project_dir(&app), &url)
+    }
 }
 
 #[tauri::command]
-fn bot_fleet(app: tauri::AppHandle) -> Vec<freqtrade::FleetEntry> {
-    freqtrade::fetch_fleet(&project_dir(&app))
+fn bot_fleet(app: tauri::AppHandle) -> Result<Vec<freqtrade::FleetEntry>, String> {
+    let bots = fleet_bots(&app)?;
+    let creds = if is_remote_mode(&app) {
+        remote_creds()
+    } else {
+        let dir = project_dir(&app);
+        match std::fs::read_to_string(dir.join(".env")) {
+            Ok(text) => freqtrade::parse_env_creds(&text),
+            Err(_) => Err("could not read .env — copy .env.example and set the WebUI password".into()),
+        }
+    };
+    Ok(freqtrade::fetch_fleet_from(&bots, &creds))
 }
 
 fn main() {
@@ -347,6 +502,12 @@ fn main() {
             autostart_enabled,
             set_autostart,
             open_dashboard,
+            open_frequi,
+            get_connection,
+            set_connection_mode,
+            set_remote_origin,
+            save_remote_webui,
+            clear_remote_webui,
             save_kraken_key,
             kraken_key_status,
             clear_kraken_key,
@@ -375,7 +536,7 @@ fn main() {
                 .tooltip("Voltra Controller")
                 .menu(&menu)
                 .on_menu_event(move |app, event| match event.id.as_ref() {
-                    "open" => open_dashboard(),
+                    "open" => open_dashboard(app.clone()),
                     "up" => {
                         let _ = stack_up(app.clone());
                         let _ = app.emit("stack-changed", ());
@@ -395,10 +556,13 @@ fn main() {
                 })
                 .build(app)?;
 
-            // Auto-start the stack at login only when Docker is actually ready.
-            let health = docker_health(handle.clone());
-            if health.ready {
-                let _ = stack_up(handle);
+            // Auto-start the local stack at login only when Docker is ready
+            // and we are not in remote-VPS console mode.
+            if !is_remote_mode(&handle) {
+                let health = docker_health(handle.clone());
+                if health.ready {
+                    let _ = stack_up(handle);
+                }
             }
             Ok(())
         })
