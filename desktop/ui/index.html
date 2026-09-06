@@ -31,7 +31,7 @@
   .pill.ok { background:#064e3b; color:#34d399; }
   .hint { font-size:11px; color:#94a3b8; margin:8px 0; }
   .hint b { color:#cbd5e1; }
-  .kraken input { width:100%; padding:8px; margin-top:8px; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#e2e8f0; }
+  .kraken input, #remoteOnly input { width:100%; padding:8px; margin-top:8px; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#e2e8f0; }
   button.link { flex:none; width:100%; background:none; border:1px dashed #334155; color:#7dd3fc; margin-top:6px; }
   .live { margin-top:18px; padding-top:14px; border-top:1px solid #1e2a44; }
   .kpis { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
@@ -315,6 +315,10 @@
     const sel = document.getElementById("botUrl");
     if (!entries.length) { wrap.innerHTML = ""; return; }
     if (!sel.value) sel.value = entries[0].snapshot.url;
+    wrap.onclick = (ev) => {
+      const btn = ev.target.closest("[data-url]");
+      if (btn) selectBot(btn.getAttribute("data-url"));
+    };
     wrap.innerHTML = entries.map((e) => {
       const s = e.snapshot;
       const active = s.url === sel.value ? " active" : "";
@@ -322,7 +326,7 @@
       const cls = !s.reachable || s.live_tripwire ? "bad" : "ok";
       const pnl = s.reachable ? usd(s.total_pnl) : "—";
       const pos = s.reachable ? `${s.open_positions.length} open` : (s.error || "offline");
-      return `<button class="botcard${active}" onclick="selectBot('${esc(s.url)}')">
+      return `<button type="button" class="botcard${active}" data-url="${esc(s.url)}">
         <div class="top"><span>${esc(e.label)}</span><span class="${cls}">${esc(mode)} · ${esc(pnl)}</span></div>
         <div class="sub">${esc(pos)}</div>
       </button>`;
@@ -419,7 +423,7 @@
     if (MODE !== "remote") refreshDocker();
     refresh();
     setInterval(refresh, 15000);
-    setInterval(refreshDocker, 30000);
+    setInterval(() => { if (MODE !== "remote") refreshDocker(); }, 30000);
   }
   listen("stack-changed", refresh);
   boot();

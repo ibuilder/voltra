@@ -207,11 +207,13 @@ pub fn normalize_remote_origin(origin: &str) -> Result<String, String> {
     }
     let host = parsed
         .host_str()
-        .ok_or_else(|| "remote origin is missing a hostname".to_string())?;
-    if !is_public_hostname(host) {
+        .ok_or_else(|| "remote origin is missing a hostname".to_string())?
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    if !is_public_hostname(&host) {
         return Err("remote origin must be a public hostname (not localhost or a raw IP)".into());
     }
-    Ok(format!("https://{}", host.to_ascii_lowercase()))
+    Ok(format!("https://{host}"))
 }
 
 fn is_public_hostname(host: &str) -> bool {
@@ -268,8 +270,10 @@ fn allowed_remote_bot_url(parsed: &url::Url) -> Result<String, String> {
     }
     let host = parsed
         .host_str()
-        .ok_or_else(|| "remote bot URL is missing a hostname".to_string())?;
-    if !is_public_hostname(host) {
+        .ok_or_else(|| "remote bot URL is missing a hostname".to_string())?
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    if !is_public_hostname(&host) {
         return Err("remote bot URL must be a public hostname".into());
     }
     let path = parsed.path().trim_end_matches('/');
@@ -279,10 +283,7 @@ fn allowed_remote_bot_url(parsed: &url::Url) -> Result<String, String> {
     if slug.contains('/') || !REMOTE_SLUGS.contains(&slug) {
         return Err(format!("unknown remote bot slug '{slug}'"));
     }
-    Ok(format!(
-        "https://{}/bot/{slug}",
-        host.to_ascii_lowercase()
-    ))
+    Ok(format!("https://{host}/bot/{slug}"))
 }
 
 fn peek_env_creds(env_text: &str) -> (Option<String>, Option<String>) {
@@ -375,10 +376,15 @@ fn login(base: &str, user: &str, pass: &str) -> Result<String, String> {
         .ok_or_else(|| "login response missing access_token".into())
 }
 
+fn creds_cache_key(base: &str, user: &str, pass: &str) -> String {
+    format!("{base}\n{user}\n{pass}")
+}
+
 fn cached_token(base: &str, user: &str, pass: &str) -> Result<String, String> {
+    let key = creds_cache_key(base, user, pass);
     {
         let cache = token_cache().lock().map_err(|e| e.to_string())?;
-        if let Some(tok) = cache.get(base) {
+        if let Some(tok) = cache.get(&key) {
             if tok.fetched_at.elapsed() < TOKEN_TTL {
                 return Ok(tok.token.clone());
             }
@@ -387,7 +393,7 @@ fn cached_token(base: &str, user: &str, pass: &str) -> Result<String, String> {
     let token = login(base, user, pass)?;
     if let Ok(mut cache) = token_cache().lock() {
         cache.insert(
-            base.to_string(),
+            key,
             CachedToken {
                 token: token.clone(),
                 fetched_at: Instant::now(),
@@ -397,9 +403,9 @@ fn cached_token(base: &str, user: &str, pass: &str) -> Result<String, String> {
     Ok(token)
 }
 
-fn invalidate_token(base: &str) {
+fn invalidate_token(base: &str, user: &str, pass: &str) {
     if let Ok(mut cache) = token_cache().lock() {
-        cache.remove(base);
+        cache.remove(&creds_cache_key(base, user, pass));
     }
 }
 
@@ -431,7 +437,7 @@ fn get_json_authed(
     let token = cached_token(base, user, pass)?;
     let (status, body) = get_json(base, path, &token)?;
     if status == 401 {
-        invalidate_token(base);
+        invalidate_token(base, user, pass);
         let token = cached_token(base, user, pass)?;
         let (status, body) = get_json(base, path, &token)?;
         if status == 401 {
@@ -450,11 +456,20 @@ fn get_json_authed(
 
 fn f64_field(v: &Value, keys: &[&str]) -> Option<f64> {
     for k in keys {
-        if let Some(n) = v.get(*k).and_then(|x| x.as_f64()) {
+        let Some(x) = v.get(*k) else { continue };
+        if let Some(n) = x.as_f64() {
             return Some(n);
         }
-        if let Some(n) = v.get(*k).and_then(|x| x.as_i64()) {
+        if let Some(n) = x.as_i64() {
             return Some(n as f64);
+        }
+        if let Some(n) = x.as_u64() {
+            return Some(n as f64);
+        }
+        if let Some(s) = x.as_str() {
+            if let Ok(n) = s.parse::<f64>() {
+                return Some(n);
+            }
         }
     }
     None
@@ -672,6 +687,10 @@ mod tests {
         assert!(normalize_remote_origin("https://user:pw@trade.example.com").is_err());
         assert!(normalize_remote_origin("https://trade.example.com/bot/dry").is_err());
         assert!(normalize_remote_origin("https://trade.example.com:8443").is_err());
+        assert_eq!(
+            normalize_remote_origin("https://trade.example.com.").unwrap(),
+            "https://trade.example.com"
+        );
     }
 
     #[test]
@@ -788,5 +807,144 @@ OTHER=ignore
         );
         assert!(snap.live_tripwire);
         assert_eq!(snap.dry_run, Some(false));
+    }
+
+    #[test]
+    fn snapshot_parses_string_profit_numbers() {
+        let profit = json!({"profit_closed_coin": "2.5", "closed_trade_count": 1});
+        let status = json!([{"pair": "SOL/USD", "profit_abs": "1.25", "profit_ratio": "0.01"}]);
+        let snap = snapshot_from_payloads(
+            "http://127.0.0.1:8080",
+            &json!({"dry_run": true, "state": "running"}),
+            &profit,
+            &json!({"total": "100"}),
+            &status,
+        );
+        assert_eq!(snap.closed_pnl, 2.5);
+        assert_eq!(snap.open_pnl, 1.25);
+        assert_eq!(snap.balance, Some(100.0));
+    }
+
+    #[test]
+    fn jwt_snapshot_against_local_mock_http() {
+        let port = spawn_freqtrade_mock().expect("bind a local allowlisted bot port for the mock");
+        let url = format!("http://127.0.0.1:{port}");
+        let snap = fetch_snapshot_with_creds(&url, "voltra", "s3cret").unwrap();
+        assert!(snap.reachable, "{:?}", snap.error);
+        assert_eq!(snap.dry_run, Some(true));
+        assert!(!snap.live_tripwire);
+        assert_eq!(snap.closed_pnl, 4.0);
+        assert_eq!(snap.strategy.as_deref(), Some("TrendBreakStrategy"));
+
+        let denied = fetch_snapshot_with_creds(&url, "voltra", "wrong").unwrap();
+        assert!(
+            !denied.reachable,
+            "wrong password must not reuse a prior JWT: {denied:?}"
+        );
+        assert!(
+            denied.error.as_deref().unwrap_or("").contains("401"),
+            "{:?}",
+            denied.error
+        );
+    }
+
+    fn spawn_freqtrade_mock() -> Option<u16> {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+        use std::thread;
+        use std::time::Duration;
+
+        let mut bound = None;
+        for port in [8083_u16, 8082, 8081, 8084, 8080] {
+            if let Ok(listener) = TcpListener::bind(("127.0.0.1", port)) {
+                bound = Some((port, listener));
+                break;
+            }
+        }
+        let (port, listener) = bound?;
+        let _ = listener.set_nonblocking(true);
+        thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(8);
+            while Instant::now() < deadline {
+                match listener.accept() {
+                    Ok((mut stream, _)) => {
+                        let _ = stream.set_nonblocking(false);
+                        let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+                        let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
+                        let req = match read_http_head(&mut stream) {
+                            Ok(req) => req,
+                            Err(_) => continue,
+                        };
+                        let (status, body) = mock_freqtrade_response(&req);
+                        let resp = format!(
+                            "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                            body.len()
+                        );
+                        let _ = stream.write_all(resp.as_bytes());
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(15));
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+        thread::sleep(Duration::from_millis(40));
+        Some(port)
+    }
+
+    fn read_http_head(stream: &mut std::net::TcpStream) -> std::io::Result<String> {
+        use std::io::Read;
+        let mut buf = Vec::new();
+        let mut tmp = [0u8; 1024];
+        loop {
+            let n = stream.read(&mut tmp)?;
+            if n == 0 {
+                break;
+            }
+            buf.extend_from_slice(&tmp[..n]);
+            if buf.windows(4).any(|w| w == b"\r\n\r\n") || buf.windows(2).any(|w| w == b"\n\n") {
+                break;
+            }
+            if buf.len() > 16 * 1024 {
+                break;
+            }
+        }
+        Ok(String::from_utf8_lossy(&buf).into_owned())
+    }
+
+    fn mock_freqtrade_response(req: &str) -> (&'static str, String) {
+        use base64::{engine::general_purpose::STANDARD, Engine as _};
+        let first = req.lines().next().unwrap_or("");
+        let basic_ok = req.contains(&format!("Authorization: Basic {}", STANDARD.encode("voltra:s3cret")));
+        let bearer_ok = req.contains("Authorization: Bearer test-token");
+        if first.starts_with("POST /api/v1/token/login") {
+            if basic_ok {
+                return ("200 OK", r#"{"access_token":"test-token"}"#.into());
+            }
+            return ("401 Unauthorized", r#"{"detail":"Unauthorized"}"#.into());
+        }
+        if !bearer_ok {
+            return ("401 Unauthorized", r#"{"detail":"Unauthorized"}"#.into());
+        }
+        if first.contains("/api/v1/show_config") {
+            return (
+                "200 OK",
+                r#"{"dry_run":true,"state":"running","strategy":"TrendBreakStrategy","stake_currency":"USD"}"#.into(),
+            );
+        }
+        if first.contains("/api/v1/profit") {
+            return (
+                "200 OK",
+                r#"{"profit_closed_coin":4.0,"closed_trade_count":2,"winning_trades":2,"losing_trades":0,"max_drawdown":0.01}"#.into(),
+            );
+        }
+        if first.contains("/api/v1/balance") {
+            return ("200 OK", r#"{"total":1004.0,"total_bot":1004.0}"#.into());
+        }
+        if first.contains("/api/v1/status") {
+            return ("200 OK", "[]".into());
+        }
+        ("404 Not Found", "{}".into())
     }
 }
