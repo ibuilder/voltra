@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ibuilder/voltra/actions"><img src="https://img.shields.io/badge/tests-42%20passing-brightgreen" alt="tests"></a>
+  <a href="https://github.com/ibuilder/voltra/actions"><img src="https://img.shields.io/badge/tests-45%20passing-brightgreen" alt="tests"></a>
   <img src="https://img.shields.io/badge/mode-dry--run-0ea5e9" alt="dry-run">
   <img src="https://img.shields.io/badge/license-MIT-6366f1" alt="MIT">
   <img src="https://img.shields.io/badge/status-experimental-7c3aed" alt="experimental">
