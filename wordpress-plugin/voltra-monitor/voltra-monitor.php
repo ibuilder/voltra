@@ -3,7 +3,7 @@
  * Plugin Name:       Voltra Monitor
  * Plugin URI:        https://github.com/ibuilder/voltra
  * Description:        Monitoring + control panel for the Voltra Freqtrade bots. Talks to the Freqtrade REST API, shows status/PnL/trades, and uses WP-Cron to poll the bots and fire a dry-run tripwire alert. Read-only by default; it never enables live trading.
- * Version:           0.2.0
+ * Version:           0.2.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Voltra
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // No direct access.
 }
 
-define( 'VOLTRA_MON_VERSION', '0.2.0' );
+define( 'VOLTRA_MON_VERSION', '0.2.1' );
 define( 'VOLTRA_MON_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VOLTRA_MON_URL', plugin_dir_url( __FILE__ ) );
 define( 'VOLTRA_MON_CRON_HOOK', 'voltra_mon_poll' );

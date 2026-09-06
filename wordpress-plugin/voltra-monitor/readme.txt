@@ -4,7 +4,7 @@ Tags: freqtrade, trading, monitoring, dashboard
 Requires at least: 6.0
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 0.2.0
+Stable tag: 0.2.1
 License: MIT
 
 Monitoring + control panel for Voltra Freqtrade bots, via the Freqtrade REST API and WP-Cron.
@@ -60,6 +60,10 @@ disable the page-load trigger:
 4. (Recommended) define VOLTRA_API_PASSWORD in wp-config.php.
 
 == Changelog ==
+
+= 0.2.1 =
+* Default bot list includes DCA (:8083) and XS-momentum (:8084). Existing
+  saved settings are unchanged.
 
 = 0.2.0 =
 * Persistent time-series data collection (custom table), history tab, CSV export.

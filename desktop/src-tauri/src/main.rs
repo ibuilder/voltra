@@ -22,8 +22,24 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Manager};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_autostart::ManagerExt;
+use tauri_plugin_dialog::DialogExt;
 
-const DEFAULT_PROJECT_DIR: &str = "C:\\Server\\solsignal";
+const LEGACY_PROJECT_DIR: &str = "C:\\Server\\solsignal";
+
+fn default_project_dir() -> PathBuf {
+    let candidates: Vec<PathBuf> = {
+        let mut v = vec![PathBuf::from(LEGACY_PROJECT_DIR)];
+        if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
+            v.push(PathBuf::from(home).join("voltra"));
+        }
+        v.push(PathBuf::from("/opt/voltra"));
+        v
+    };
+    candidates
+        .into_iter()
+        .find(|p| p.is_dir())
+        .unwrap_or_else(|| PathBuf::from(LEGACY_PROJECT_DIR))
+}
 
 fn docker_candidates() -> &'static [&'static str] {
     &[
@@ -63,7 +79,7 @@ fn project_dir(app: &tauri::AppHandle) -> PathBuf {
             }
         }
     }
-    PathBuf::from(DEFAULT_PROJECT_DIR)
+    default_project_dir()
 }
 
 fn compose(app: &tauri::AppHandle, args: &[&str]) -> Result<String, String> {
@@ -129,6 +145,17 @@ fn set_project_dir(app: tauri::AppHandle, dir: String) -> Result<(), String> {
     let cfg = app.path().app_config_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&cfg).map_err(|e| e.to_string())?;
     std::fs::write(cfg.join("project_dir.txt"), dir).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn pick_project_dir(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let picked = app.dialog().file().set_title("Voltra project folder").blocking_pick_folder();
+    let Some(path) = picked else {
+        return Ok(None);
+    };
+    let dir = format!("{path}");
+    set_project_dir(app, dir.clone())?;
+    Ok(Some(dir))
 }
 
 #[tauri::command]
@@ -484,6 +511,35 @@ fn bot_fleet(app: tauri::AppHandle) -> Result<Vec<freqtrade::FleetEntry>, String
     Ok(freqtrade::fetch_fleet_from(&bots, &creds))
 }
 
+/// TLS + JWT smoke test against `/bot/dry` on the saved remote origin.
+#[tauri::command]
+fn probe_remote(app: tauri::AppHandle) -> Result<String, String> {
+    if !is_remote_mode(&app) {
+        return Err("Switch to Remote VPS mode first.".into());
+    }
+    let origin = remote_origin(&app)
+        .ok_or_else(|| "Set a remote origin like https://trade.example.com first.".to_string())?;
+    let (user, pass) = remote_creds()?;
+    let bots = freqtrade::catalog_remote(&origin)?;
+    let dry = bots
+        .iter()
+        .find(|b| b.slug == "dry")
+        .ok_or_else(|| "remote catalog missing /bot/dry".to_string())?;
+    let snap = freqtrade::fetch_snapshot_with_creds(&dry.url, &user, &pass)?;
+    if snap.live_tripwire {
+        return Err(format!(
+            "LIVE TRIPWIRE on {origin}/bot/dry — dry_run is false. The controller did not enable that."
+        ));
+    }
+    if !snap.reachable {
+        return Err(snap.error.unwrap_or_else(|| format!("{origin} unreachable").into()));
+    }
+    let strat = snap.strategy.unwrap_or_else(|| "unknown strategy".into());
+    Ok(format!(
+        "TLS + JWT ok at {origin}/bot/dry ({strat}). Read-only; dry-run stays a human-only change."
+    ))
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -499,6 +555,7 @@ fn main() {
             stack_status,
             get_project_dir,
             set_project_dir,
+            pick_project_dir,
             autostart_enabled,
             set_autostart,
             open_dashboard,
@@ -508,6 +565,7 @@ fn main() {
             set_remote_origin,
             save_remote_webui,
             clear_remote_webui,
+            probe_remote,
             save_kraken_key,
             kraken_key_status,
             clear_kraken_key,

@@ -78,7 +78,10 @@
       <label><input type="checkbox" id="autostart" onchange="toggleAutostart()"> Start automatically when I sign in</label>
       <div class="path">
         <div style="font-size:12px;color:#94a3b8;margin-bottom:4px;">Project folder (where docker-compose.yml lives)</div>
-        <input id="dir" onchange="saveDir()" />
+        <div class="row" style="margin-bottom:0">
+          <input id="dir" onchange="saveDir()" />
+          <button style="flex:0 0 88px" onclick="browseDir()">Browse</button>
+        </div>
       </div>
     </div>
     <section id="remoteOnly" class="live" hidden>
@@ -98,8 +101,12 @@
         <button onclick="clearRemote()">Clear</button>
       </div>
       <div class="row">
+        <button class="primary" onclick="probeRemote()">Test TLS connection</button>
         <button onclick="dashboard()">Open cockpit ↗</button>
+      </div>
+      <div class="row">
         <button onclick="frequi()">Open FreqUI ↗</button>
+        <button onclick="refresh()">↻ Refresh fleet</button>
       </div>
       <p id="remoteHint" class="hint"></p>
     </section>
@@ -229,6 +236,17 @@
     } catch (e) { msg("error: " + e); }
   };
   window.saveDir = async () => { await invoke("set_project_dir", { dir: document.getElementById("dir").value }); msg("project folder saved"); refresh(); };
+  window.browseDir = async () => {
+    try {
+      const dir = await invoke("pick_project_dir");
+      if (dir) { document.getElementById("dir").value = dir; msg("project folder saved"); refresh(); }
+    } catch (e) { msg("error: " + e); }
+  };
+  window.probeRemote = async () => {
+    msg("testing TLS…");
+    try { msg(await invoke("probe_remote")); }
+    catch (e) { msg("error: " + e); }
+  };
   window.toggleAutostart = async () => {
     const on = document.getElementById("autostart").checked;
     try { await invoke("set_autostart", { enabled: on }); msg(on ? "will start at login" : "autostart off"); }

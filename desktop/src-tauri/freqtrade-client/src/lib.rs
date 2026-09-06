@@ -697,6 +697,7 @@ mod tests {
     fn remote_catalog_uses_caddy_slugs() {
         let bots = catalog_remote("https://trade.example.com").unwrap();
         assert_eq!(bots.len(), 5);
+        assert!(bots.iter().any(|b| b.slug == "dry" && b.url.ends_with("/bot/dry")));
         assert!(bots.iter().any(|b| b.url == "https://trade.example.com/bot/xsmom"));
         assert!(bots.iter().all(|b| b.url.starts_with("https://trade.example.com/bot/")));
     }

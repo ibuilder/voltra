@@ -8,7 +8,7 @@ enables live trading.
 
 ## What you get
 
-- One `Voltra Controller.exe` (NSIS installer + MSI). Double-click installs.
+- Windows: `Voltra Controller.exe` (NSIS + MSI). macOS: `.dmg`. Linux: AppImage + `.deb`.
 - Tray icon: Start stack / Stop stack / Open Dashboard / Show / Quit.
 - Window: **Local stack** or **Remote VPS** mode, service list, autostart,
   project-folder picker, **live fleet snapshot** (JWT — P&L + open positions),
@@ -17,7 +17,8 @@ enables live trading.
 
 ## Prerequisites to build (one-time, on your machine or CI)
 
-- Node 20+, Rust (stable), and on Windows the MSVC build tools.
+- Node 20+, Rust (stable). Windows: MSVC build tools. macOS: Xcode CLT.
+  Linux: WebKitGTK 4.1 (`libwebkit2gtk-4.1-dev`).
 - The build is normally done by **GitHub Actions** (`.github/workflows/release.yml`),
   so you don't need a local toolchain — see "Release" below.
 
@@ -74,8 +75,9 @@ installed apps see the update (signature-verified, prompt before install).
 
 ## Configuration
 
-- The app defaults the project folder to `C:\Server\solsignal`. Change it in the
-  window if your checkout lives elsewhere; it's saved to the app config dir.
+- The app looks for an existing checkout in this order: `C:\Server\solsignal`,
+  `~/voltra`, `/opt/voltra`. Use **Browse** or type a path; it's saved to the
+  app config dir.
 - The app finds `docker` on PATH, the Windows Docker Desktop default path, or
   `/usr/bin` / `/usr/local/bin`.
 - **Docker health check:** the window shows whether the CLI, daemon,
