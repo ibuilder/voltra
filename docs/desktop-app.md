@@ -76,9 +76,12 @@ installed apps see the update (signature-verified, prompt before install).
 
 - The app defaults the project folder to `C:\Server\solsignal`. Change it in the
   window if your checkout lives elsewhere; it's saved to the app config dir.
-- The app finds `docker.exe` on PATH or at the Docker Desktop default location.
-- It assumes Docker Desktop is installed. (A future version could bundle a
-  Docker health check / install prompt.)
+- The app finds `docker` on PATH, the Windows Docker Desktop default path, or
+  `/usr/bin` / `/usr/local/bin`.
+- **Docker health check:** the window shows whether the CLI, daemon,
+  `docker-compose.yml`, and `.env` WebUI password are ready. Missing Docker
+  deep-links to the install docs; missing `.env` can be copied from
+  `.env.example`. The stack is not auto-started at login until Docker is ready.
 
 ### Kraken API key
 
@@ -97,9 +100,10 @@ installed apps see the update (signature-verified, prompt before install).
 
 ### Live snapshot (positions / P&L)
 
-- The controller JWT-auths to a **localhost** bot (`127.0.0.1:8080–8084`) using
+- The controller JWT-auths to **localhost** bots (`127.0.0.1:8080–8084`) using
   `FREQTRADE__API_SERVER__USERNAME` / `PASSWORD` from the project `.env`. The
-  access token never leaves the Rust process.
+  access token never leaves the Rust process. A fleet strip shows every bot;
+  click one for P&L and open positions.
 - It only reads `/show_config`, `/profit`, `/balance`, and `/status`. It does
   not start/stop the bot via REST and **never** writes `dry_run`.
 - If a bot reports `dry_run: false`, the window shows a **LIVE TRIPWIRE**

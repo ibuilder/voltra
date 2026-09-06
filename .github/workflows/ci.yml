@@ -46,4 +46,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate docker-compose.yml
-        run: docker compose config --quiet && echo "compose valid"
+        run: |
+          # compose references env_file: .env (gitignored). Seed the example
+          # so CI can lint the file without secrets.
+          cp .env.example .env
+          docker compose config --quiet && echo "compose valid"

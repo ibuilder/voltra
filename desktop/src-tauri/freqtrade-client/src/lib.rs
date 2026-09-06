@@ -7,9 +7,10 @@
 //! SAFETY: this module is GET-only plus `/token/login`. It never writes
 //! config, never calls start/stop/forceenter, and never flips `dry_run`.
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
@@ -88,7 +89,23 @@ struct CachedToken {
     fetched_at: Instant,
 }
 
-static TOKEN_CACHE: Mutex<Option<(String, CachedToken)>> = Mutex::new(None);
+fn token_cache() -> &'static Mutex<HashMap<String, CachedToken>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, CachedToken>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+#[derive(Clone, Serialize)]
+pub struct EnvReady {
+    pub env_exists: bool,
+    pub username_set: bool,
+    pub password_set: bool,
+}
+
+#[derive(Clone, Serialize)]
+pub struct FleetEntry {
+    pub label: String,
+    pub snapshot: BotSnapshot,
+}
 
 pub fn catalog() -> Vec<BotInfo> {
     vec![
@@ -145,7 +162,7 @@ pub fn allowed_bot_url(url: &str) -> Result<String, String> {
     Ok(format!("http://127.0.0.1:{port}"))
 }
 
-pub fn parse_env_creds(env_text: &str) -> Result<(String, String), String> {
+fn peek_env_creds(env_text: &str) -> (Option<String>, Option<String>) {
     let mut user = None;
     let mut pass = None;
     for raw in env_text.lines() {
@@ -163,10 +180,18 @@ pub fn parse_env_creds(env_text: &str) -> Result<(String, String), String> {
             _ => {}
         }
     }
-    let user = user.filter(|s| !s.is_empty()).ok_or_else(|| {
+    (
+        user.filter(|s| !s.is_empty()),
+        pass.filter(|s| !s.is_empty()),
+    )
+}
+
+pub fn parse_env_creds(env_text: &str) -> Result<(String, String), String> {
+    let (user, pass) = peek_env_creds(env_text);
+    let user = user.ok_or_else(|| {
         "FREQTRADE__API_SERVER__USERNAME missing in .env".to_string()
     })?;
-    let pass = pass.filter(|s| !s.is_empty()).ok_or_else(|| {
+    let pass = pass.ok_or_else(|| {
         "FREQTRADE__API_SERVER__PASSWORD missing in .env — set the WebUI password".to_string()
     })?;
     Ok((user, pass))
@@ -229,29 +254,29 @@ fn login(base: &str, user: &str, pass: &str) -> Result<String, String> {
 
 fn cached_token(base: &str, user: &str, pass: &str) -> Result<String, String> {
     {
-        let cache = TOKEN_CACHE.lock().map_err(|e| e.to_string())?;
-        if let Some((cached_base, tok)) = cache.as_ref() {
-            if cached_base == base && tok.fetched_at.elapsed() < TOKEN_TTL {
+        let cache = token_cache().lock().map_err(|e| e.to_string())?;
+        if let Some(tok) = cache.get(base) {
+            if tok.fetched_at.elapsed() < TOKEN_TTL {
                 return Ok(tok.token.clone());
             }
         }
     }
     let token = login(base, user, pass)?;
-    if let Ok(mut cache) = TOKEN_CACHE.lock() {
-        *cache = Some((
+    if let Ok(mut cache) = token_cache().lock() {
+        cache.insert(
             base.to_string(),
             CachedToken {
                 token: token.clone(),
                 fetched_at: Instant::now(),
             },
-        ));
+        );
     }
     Ok(token)
 }
 
-fn invalidate_token() {
-    if let Ok(mut cache) = TOKEN_CACHE.lock() {
-        *cache = None;
+fn invalidate_token(base: &str) {
+    if let Ok(mut cache) = token_cache().lock() {
+        cache.remove(base);
     }
 }
 
@@ -283,7 +308,7 @@ fn get_json_authed(
     let token = cached_token(base, user, pass)?;
     let (status, body) = get_json(base, path, &token)?;
     if status == 401 {
-        invalidate_token();
+        invalidate_token(base);
         let token = cached_token(base, user, pass)?;
         let (status, body) = get_json(base, path, &token)?;
         if status == 401 {
@@ -379,6 +404,74 @@ pub fn snapshot_from_payloads(
     }
 }
 
+pub fn inspect_env(project_dir: &Path) -> EnvReady {
+    let path = project_dir.join(".env");
+    let Ok(text) = fs::read_to_string(&path) else {
+        return EnvReady {
+            env_exists: false,
+            username_set: false,
+            password_set: false,
+        };
+    };
+    let (user, pass) = peek_env_creds(&text);
+    EnvReady {
+        env_exists: true,
+        username_set: user.is_some(),
+        password_set: pass.is_some(),
+    }
+}
+
+/// Human-readable stack gate for the controller banner. Never mentions secrets.
+pub fn stack_ready_hint(
+    cli_found: bool,
+    daemon_ok: bool,
+    compose_file: bool,
+    env: &EnvReady,
+) -> (bool, String) {
+    if !cli_found {
+        return (
+            false,
+            "Docker CLI not found. Install Docker Desktop, then Start stack.".into(),
+        );
+    }
+    if !daemon_ok {
+        return (
+            false,
+            "Docker is installed but the daemon is not running — start Docker Desktop.".into(),
+        );
+    }
+    if !compose_file {
+        return (
+            false,
+            "This folder has no docker-compose.yml — pick the Voltra checkout.".into(),
+        );
+    }
+    if !env.env_exists {
+        return (
+            false,
+            "No .env yet — copy from .env.example, then set the WebUI password.".into(),
+        );
+    }
+    if !env.password_set {
+        return (
+            false,
+            "Set FREQTRADE__API_SERVER__PASSWORD in .env so the live snapshot can log in.".into(),
+        );
+    }
+    (true, "Docker ready. Snapshot stays read-only; dry-run is never flipped.".into())
+}
+
+pub fn fetch_fleet(project_dir: &Path) -> Vec<FleetEntry> {
+    catalog()
+        .into_iter()
+        .map(|bot| FleetEntry {
+            snapshot: fetch_snapshot(project_dir, &bot.url)
+                .unwrap_or_else(|e| BotSnapshot::unreachable(&bot.url, e)),
+            label: bot.label,
+        })
+        .collect()
+}
+
 pub fn fetch_snapshot(project_dir: &Path, url: &str) -> Result<BotSnapshot, String> {
     let base = allowed_bot_url(url)?;
     let (user, pass) = load_creds(project_dir)?;
@@ -462,6 +555,35 @@ OTHER=ignore
         assert_eq!(snap.open_positions.len(), 2);
         assert_eq!(snap.closed_trades, 4);
         assert_eq!(snap.balance, Some(5012.5));
+    }
+
+    #[test]
+    fn inspect_env_reports_partial_creds() {
+        let tmp = std::env::temp_dir().join(format!("voltra-env-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+        std::fs::write(tmp.join(".env"), "FREQTRADE__API_SERVER__USERNAME=voltra\n").unwrap();
+        let ready = inspect_env(&tmp);
+        assert!(ready.env_exists && ready.username_set && !ready.password_set);
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn stack_ready_hint_prioritizes_docker_then_env() {
+        let missing_pw = EnvReady {
+            env_exists: true,
+            username_set: true,
+            password_set: false,
+        };
+        let (ok, hint) = stack_ready_hint(true, true, true, &missing_pw);
+        assert!(!ok);
+        assert!(hint.contains("PASSWORD"));
+        let ready = EnvReady {
+            env_exists: true,
+            username_set: true,
+            password_set: true,
+        };
+        assert!(stack_ready_hint(true, true, true, &ready).0);
+        assert!(!stack_ready_hint(false, false, true, &ready).0);
     }
 
     #[test]

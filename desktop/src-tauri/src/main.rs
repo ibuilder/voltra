@@ -25,18 +25,31 @@ use tauri_plugin_autostart::ManagerExt;
 
 const DEFAULT_PROJECT_DIR: &str = "C:\\Server\\solsignal";
 
-// Candidate docker CLI locations (Docker Desktop is often not on PATH).
-fn docker_bin() -> String {
-    let candidates = [
+fn docker_candidates() -> &'static [&'static str] {
+    &[
         "docker",
         "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe",
-    ];
-    for c in candidates {
+        "/usr/local/bin/docker",
+        "/usr/bin/docker",
+    ]
+}
+
+// Candidate docker CLI locations (Docker Desktop is often not on PATH).
+fn docker_bin() -> Option<String> {
+    for c in docker_candidates() {
         if Command::new(c).arg("--version").output().map(|o| o.status.success()).unwrap_or(false) {
-            return c.to_string();
+            return Some((*c).to_string());
         }
     }
-    "docker".to_string()
+    None
+}
+
+fn docker_daemon_ok(bin: &str) -> bool {
+    Command::new(bin)
+        .args(["info", "--format", "{{.ServerVersion}}"])
+        .output()
+        .map(|o| o.status.success() && !String::from_utf8_lossy(&o.stdout).trim().is_empty())
+        .unwrap_or(false)
 }
 
 fn project_dir(app: &tauri::AppHandle) -> PathBuf {
@@ -54,8 +67,14 @@ fn project_dir(app: &tauri::AppHandle) -> PathBuf {
 }
 
 fn compose(app: &tauri::AppHandle, args: &[&str]) -> Result<String, String> {
+    let bin = docker_bin().ok_or_else(|| {
+        "Docker CLI not found. Install Docker Desktop, then try again.".to_string()
+    })?;
+    if !docker_daemon_ok(&bin) {
+        return Err("Docker is installed but the daemon is not running — start Docker Desktop.".into());
+    }
     let dir = project_dir(app);
-    let out = Command::new(docker_bin())
+    let out = Command::new(bin)
         .arg("compose")
         .args(args)
         .current_dir(&dir)
@@ -235,6 +254,64 @@ fn apply_kraken_key_to_env(app: tauri::AppHandle) -> Result<String, String> {
         going live is a separate, manual step.".into())
 }
 
+#[derive(Serialize)]
+struct DockerHealth {
+    cli_found: bool,
+    daemon_ok: bool,
+    compose_file: bool,
+    env_exists: bool,
+    webui_password: bool,
+    ready: bool,
+    hint: String,
+}
+
+#[tauri::command]
+fn docker_health(app: tauri::AppHandle) -> DockerHealth {
+    let dir = project_dir(&app);
+    let cli = docker_bin();
+    let cli_found = cli.is_some();
+    let daemon_ok = cli.as_deref().map(docker_daemon_ok).unwrap_or(false);
+    let compose_file = dir.join("docker-compose.yml").is_file();
+    let env = freqtrade::inspect_env(&dir);
+    let (ready, hint) = freqtrade::stack_ready_hint(cli_found, daemon_ok, compose_file, &env);
+    DockerHealth {
+        cli_found,
+        daemon_ok,
+        compose_file,
+        env_exists: env.env_exists,
+        webui_password: env.password_set,
+        ready,
+        hint,
+    }
+}
+
+#[tauri::command]
+fn copy_env_example(app: tauri::AppHandle) -> Result<String, String> {
+    let dir = project_dir(&app);
+    let src = dir.join(".env.example");
+    let dest = dir.join(".env");
+    if dest.exists() {
+        return Ok(".env already exists — not overwritten.".into());
+    }
+    if !src.is_file() {
+        return Err("No .env.example in the project folder.".into());
+    }
+    std::fs::copy(&src, &dest).map_err(|e| e.to_string())?;
+    Ok("Copied .env.example → .env. Set FREQTRADE__API_SERVER__PASSWORD, then refresh.".into())
+}
+
+#[tauri::command]
+fn open_docker_install() {
+    let url = if cfg!(target_os = "macos") {
+        "https://docs.docker.com/desktop/setup/install/mac-install/"
+    } else if cfg!(target_os = "windows") {
+        "https://docs.docker.com/desktop/setup/install/windows-install/"
+    } else {
+        "https://docs.docker.com/engine/install/"
+    };
+    let _ = open::that(url);
+}
+
 #[tauri::command]
 fn bot_catalog() -> Vec<freqtrade::BotInfo> {
     freqtrade::catalog()
@@ -245,6 +322,11 @@ fn bot_catalog() -> Vec<freqtrade::BotInfo> {
 #[tauri::command]
 fn bot_snapshot(app: tauri::AppHandle, url: String) -> Result<freqtrade::BotSnapshot, String> {
     freqtrade::fetch_snapshot(&project_dir(&app), &url)
+}
+
+#[tauri::command]
+fn bot_fleet(app: tauri::AppHandle) -> Vec<freqtrade::FleetEntry> {
+    freqtrade::fetch_fleet(&project_dir(&app))
 }
 
 fn main() {
@@ -272,6 +354,10 @@ fn main() {
             apply_kraken_key_to_env,
             bot_catalog,
             bot_snapshot,
+            bot_fleet,
+            docker_health,
+            copy_env_example,
+            open_docker_install,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -309,8 +395,11 @@ fn main() {
                 })
                 .build(app)?;
 
-            // Auto-start the stack when the controller launches at login.
-            let _ = stack_up(handle);
+            // Auto-start the stack at login only when Docker is actually ready.
+            let health = docker_health(handle.clone());
+            if health.ready {
+                let _ = stack_up(handle);
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

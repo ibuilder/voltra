@@ -41,6 +41,14 @@
   .pos { display:flex; justify-content:space-between; padding:6px 0; border-top:1px solid #1e2a44; font-size:13px; }
   select { width:100%; padding:8px; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#e2e8f0; }
   .trip { background:#4c1d24; color:#fecaca; border-radius:6px; padding:8px 10px; font-size:12px; margin:8px 0; }
+  .banner { border-radius:8px; padding:10px 12px; font-size:12px; margin-bottom:12px; }
+  .banner.warn { background:#3f2e12; color:#fde68a; border:1px solid #854d0e; }
+  .banner.ok { background:#064e3b; color:#a7f3d0; border:1px solid #065f46; }
+  .fleet { display:flex; flex-direction:column; gap:6px; margin:8px 0 12px; }
+  .botcard { text-align:left; width:100%; padding:8px 10px; border:1px solid #1e2a44; background:#0f172a; border-radius:8px; cursor:pointer; }
+  .botcard.active { border-color:#fbbf24; }
+  .botcard .top { display:flex; justify-content:space-between; gap:8px; font-size:12px; }
+  .botcard .sub { font-size:11px; color:#94a3b8; margin-top:2px; }
 </style>
 </head>
 <body>
@@ -56,6 +64,11 @@
       <button onclick="refresh()">↻ Refresh status</button>
       <button onclick="dashboard()">Open dashboard ↗</button>
     </div>
+    <div id="dockerBanner" class="banner warn" hidden></div>
+    <div class="row" id="dockerActions" hidden>
+      <button onclick="openDocker()">Install Docker ↗</button>
+      <button onclick="copyEnv()">Copy .env.example</button>
+    </div>
     <div id="services"></div>
     <label><input type="checkbox" id="autostart" onchange="toggleAutostart()"> Start automatically when I sign in</label>
     <div class="path">
@@ -67,8 +80,9 @@
       <div class="sec-title">Live snapshot
         <span id="botMode" class="pill ok">dry-run</span>
       </div>
-      <p class="hint">Read-only view of a local Freqtrade bot (JWT via .env WebUI login). Tokens stay in the Rust process. This never enables live trading.</p>
-      <select id="botUrl" onchange="refreshSnapshot()"></select>
+      <p class="hint">Read-only view of local Freqtrade bots (JWT via .env WebUI login). Tokens stay in the Rust process. This never enables live trading.</p>
+      <div id="fleet" class="fleet"></div>
+      <select id="botUrl" onchange="refreshSnapshot()" hidden></select>
       <div id="tripwire" class="trip" hidden>LIVE TRIPWIRE — this bot reports dry_run=false. The controller did not enable that. Stop the stack and inspect config.</div>
       <div class="kpis">
         <div class="kpi"><div class="lbl">Balance</div><div class="val" id="kpiBal">—</div></div>
@@ -163,6 +177,49 @@
   const usd = (v) => v == null ? "—" : Number(v).toLocaleString("en-US", { style: "currency", currency: "USD" });
   const pct = (v) => v == null ? "—" : `${(Number(v) * 100).toFixed(2)}%`;
   const signedPct = (v) => `${v >= 0 ? "+" : ""}${(Number(v) * 100).toFixed(2)}%`;
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
+
+  window.openDocker = () => invoke("open_docker_install");
+  window.copyEnv = async () => {
+    try { msg(await invoke("copy_env_example")); } catch (e) { msg("error: " + e); }
+    refresh();
+  };
+
+  window.refreshDocker = async () => {
+    try {
+      const h = await invoke("docker_health");
+      const banner = document.getElementById("dockerBanner");
+      const actions = document.getElementById("dockerActions");
+      banner.hidden = false;
+      banner.className = "banner " + (h.ready ? "ok" : "warn");
+      banner.textContent = h.hint;
+      actions.hidden = h.ready;
+    } catch (e) { msg("docker check: " + e); }
+  };
+
+  function renderFleet(entries) {
+    const wrap = document.getElementById("fleet");
+    const sel = document.getElementById("botUrl");
+    if (!entries.length) { wrap.innerHTML = ""; return; }
+    if (!sel.value) sel.value = entries[0].snapshot.url;
+    wrap.innerHTML = entries.map((e) => {
+      const s = e.snapshot;
+      const active = s.url === sel.value ? " active" : "";
+      const mode = !s.reachable ? "offline" : (s.live_tripwire ? "LIVE" : "dry-run");
+      const cls = !s.reachable || s.live_tripwire ? "bad" : "ok";
+      const pnl = s.reachable ? usd(s.total_pnl) : "—";
+      const pos = s.reachable ? `${s.open_positions.length} open` : (s.error || "offline");
+      return `<button class="botcard${active}" onclick="selectBot('${esc(s.url)}')">
+        <div class="top"><span>${esc(e.label)}</span><span class="${cls}">${esc(mode)} · ${esc(pnl)}</span></div>
+        <div class="sub">${esc(pos)}</div>
+      </button>`;
+    }).join("");
+  }
+
+  window.selectBot = (url) => {
+    document.getElementById("botUrl").value = url;
+    refreshSnapshot();
+  };
 
   window.refreshSnapshot = async () => {
     const sel = document.getElementById("botUrl");
@@ -200,7 +257,7 @@
         wrap.innerHTML = '<p class="hint">None — waiting for a setup.</p>';
       } else {
         wrap.innerHTML = s.open_positions.map((p) =>
-          `<div class="pos"><span>${p.pair}</span><span class="${p.profit_ratio >= 0 ? "ok" : "bad"}">${usd(p.profit_abs)} (${signedPct(p.profit_ratio)})</span></div>`
+          `<div class="pos"><span>${esc(p.pair)}</span><span class="${p.profit_ratio >= 0 ? "ok" : "bad"}">${usd(p.profit_abs)} (${signedPct(p.profit_ratio)})</span></div>`
         ).join("");
       }
     } catch (e) {
@@ -211,6 +268,7 @@
   };
 
   window.refresh = async () => {
+    refreshDocker();
     try {
       const svcs = await invoke("stack_status");
       const el = document.getElementById("services");
@@ -222,6 +280,14 @@
         }).join("");
       }
     } catch(e){ msg("status error: "+e); }
+    try {
+      const fleet = await invoke("bot_fleet");
+      const sel = document.getElementById("botUrl");
+      if (!sel.options.length) {
+        sel.innerHTML = fleet.map(e => `<option value="${esc(e.snapshot.url)}">${esc(e.label)}</option>`).join("");
+      }
+      renderFleet(fleet);
+    } catch (e) { msg("fleet error: " + e); }
     refreshSnapshot();
   };
 
@@ -230,10 +296,12 @@
     document.getElementById("autostart").checked = await invoke("autostart_enabled");
     const bots = await invoke("bot_catalog");
     const sel = document.getElementById("botUrl");
-    sel.innerHTML = bots.map(b => `<option value="${b.url}">${b.label}</option>`).join("");
+    sel.innerHTML = bots.map(b => `<option value="${esc(b.url)}">${esc(b.label)}</option>`).join("");
     refreshKeyState();
+    refreshDocker();
     refresh();
     setInterval(refresh, 15000);
+    setInterval(refreshDocker, 30000);
   }
   listen("stack-changed", refresh);
   boot();

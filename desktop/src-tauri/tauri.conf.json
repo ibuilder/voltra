@@ -10,8 +10,8 @@
     "windows": [
       {
         "title": "Voltra Controller",
-        "width": 540,
-        "height": 780,
+        "width": 560,
+        "height": 820,
         "resizable": true,
         "visible": true
       }
