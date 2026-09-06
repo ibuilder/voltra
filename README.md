@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ibuilder/voltra/actions"><img src="https://img.shields.io/badge/tests-33%20passing-brightgreen" alt="tests"></a>
+  <a href="https://github.com/ibuilder/voltra/actions"><img src="https://img.shields.io/badge/tests-42%20passing-brightgreen" alt="tests"></a>
   <img src="https://img.shields.io/badge/mode-dry--run-0ea5e9" alt="dry-run">
   <img src="https://img.shields.io/badge/license-MIT-6366f1" alt="MIT">
   <img src="https://img.shields.io/badge/status-experimental-7c3aed" alt="experimental">
@@ -39,7 +39,8 @@ The **Voltra Controller** is a lightweight Tauri system-tray app that manages
 the Docker stack on this machine **or** connects over TLS to a 24/7 VPS
 (Oracle/Hetzner) as a read-only console — start/stop (local only), Docker health,
 fleet P&L / open positions, open dashboard, login autostart. It never enables
-live trading. Build/release and GitHub setup:
+live trading. **First-run (local snapshot → Caddy deploy → remote TLS probe):**
+[docs/operator-console.md](docs/operator-console.md). Build/release:
 [docs/desktop-app.md](docs/desktop-app.md). Source in `desktop/`.
 
 **Important:** read [DISCLAIMER.md](DISCLAIMER.md) — experimental software,
@@ -94,6 +95,8 @@ Current fleet:
 | voltra-dry | voltra-freqtrade | 8080 | TrendBreakStrategy (tuned) | BTC/ETH/SOL/XRP |
 | voltra-cross | voltra-freqtrade-cross | 8081 | SolCrossSignalStrategy | SOL/USD |
 | voltra-webhook | voltra-freqtrade-webhook | 8082 | WebhookRelayStrategy (TradingView-driven, experimental) | BTC/ETH/SOL/XRP |
+| voltra-dca | voltra-freqtrade-dca | 8083 | DcaAccumulateStrategy | BTC/ETH/SOL (weekly) |
+| voltra-xsmom | voltra-freqtrade-xsmom | 8084 | CrossSectionalMomentumStrategy | top-3 of 16 |
 
 Plus `webhook-relay` (:8090) bridging TradingView alerts → bot #3 — see
 [docs/tradingview-integration.md](docs/tradingview-integration.md).

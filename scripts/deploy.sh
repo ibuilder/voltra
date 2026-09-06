@@ -23,7 +23,8 @@ echo "==> Bringing up the stack (Caddy public on 80/443, rest loopback-only)"
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 echo "==> Waiting for bots to report healthy"
-for c in voltra-freqtrade voltra-freqtrade-cross voltra-freqtrade-webhook; do
+for c in voltra-freqtrade voltra-freqtrade-cross voltra-freqtrade-webhook \
+         voltra-freqtrade-dca voltra-freqtrade-xsmom; do
   for _ in $(seq 1 24); do
     s=$(docker inspect --format '{{.State.Health.Status}}' "$c" 2>/dev/null || echo none)
     [ "$s" = "healthy" ] && break

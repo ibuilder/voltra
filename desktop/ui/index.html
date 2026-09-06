@@ -115,7 +115,9 @@
       <div class="sec-title">Live snapshot
         <span id="botMode" class="pill ok">dry-run</span>
       </div>
-      <p class="hint">Read-only fleet (JWT). Tokens stay in the Rust process. This never enables live trading.</p>
+      <p class="hint">Read-only fleet (JWT). Tokens stay in the Rust process. This never enables live trading.
+        First-run: local snapshot → VPS <b>./scripts/deploy.sh</b> → Remote VPS <b>Test TLS connection</b>
+        (docs/operator-console.md).</p>
       <div id="fleet" class="fleet"></div>
       <select id="botUrl" hidden></select>
       <div id="tripwire" class="trip" hidden>LIVE TRIPWIRE — this bot reports dry_run=false. The controller did not enable that. Stop the stack and inspect config.</div>

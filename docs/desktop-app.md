@@ -6,6 +6,9 @@ login (no manual Startup-folder or PowerShell steps). It is a **controller**,
 not the bot — all trading logic stays in the Docker containers, and it never
 enables live trading.
 
+**First-run (human):** [operator-console.md](operator-console.md) — local
+snapshot → `./scripts/deploy.sh` → Remote VPS **Test TLS connection**.
+
 ## What you get
 
 - Windows: `Voltra Controller.exe` (NSIS + MSI). macOS: `.dmg`. Linux: AppImage + `.deb`.

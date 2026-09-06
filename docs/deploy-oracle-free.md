@@ -133,10 +133,15 @@ Windows autostart). Containers also self-heal via `restart: unless-stopped`.
 ## 9. Verify
 
 ```bash
+python3 scripts/check_console.py      # slugs / compose / deploy waits still match
 docker compose ps                     # all services Up / healthy
 docker logs voltra-healthwatch     # bots ok, dry_run tripwire armed
 curl -s https://trade.yourdomain.com -o /dev/null -w "%{http_code}\n"  # 200
 ```
+
+Then on your laptop, Voltra Controller → **Remote VPS** → origin
+`https://trade.yourdomain.com` + WebUI login → **Test TLS connection**.
+Full order: [operator-console.md](operator-console.md).
 
 ## Ongoing
 

@@ -23,6 +23,9 @@ jobs:
       - name: Run tests
         run: python -m pytest tests/ -q
 
+      - name: Console / Caddy / compose alignment
+        run: python3 scripts/check_console.py
+
       - name: Validate JSON configs and params
         run: |
           for f in user_data/config*.json user_data/strategies/*.json user_data/pairlist.json; do

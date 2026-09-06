@@ -103,6 +103,8 @@ voltra-xsmom|https://trade.yourdomain.com/bot/xsmom
 
 The **Voltra Controller** desktop app can use the same HTTPS origin in
 **Remote VPS** mode (read-only fleet / P&L; it never flips `dry_run`).
+Do local snapshot → `./scripts/deploy.sh` → **Test TLS connection** in
+[operator-console.md](operator-console.md).
 API username `voltra`, and the password from `.env` (prefer defining
 `VOLTRA_API_PASSWORD` in DreamHost's `wp-config.php`).
 

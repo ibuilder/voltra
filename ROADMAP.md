@@ -16,7 +16,8 @@ milestone is not a feature — it's proving (or disproving) the edge. See the
 - Enterprise ops: Caddy TLS ingress, health monitoring + dry-run tripwire,
   backups + tested restore, rate limiting, log rotation, CI.
 - TradingView / Pine v6 webhook bridge (isolated experimental bot).
-- Tauri desktop controller + signed autoupdater.
+- Tauri desktop controller + signed autoupdater + operator console checklist
+  (local snapshot → Caddy deploy → remote TLS probe).
 - WordPress monitor plugin with persistent data collection + CSV export.
 - Trade/audit ledger export; incident runbook; key-rotation procedures.
 - Free 24/7 deployment path (Oracle Always-Free + systemd).
