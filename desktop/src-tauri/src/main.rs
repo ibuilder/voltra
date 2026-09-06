@@ -13,7 +13,7 @@
 
 use freqtrade_client as freqtrade;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use serde::Serialize;
@@ -89,7 +89,7 @@ fn compose(app: &tauri::AppHandle, args: &[&str]) -> Result<String, String> {
     if !docker_daemon_ok(&bin) {
         return Err("Docker is installed but the daemon is not running — start Docker Desktop.".into());
     }
-    let dir = project_dir(app);
+    let dir = freqtrade::validate_voltra_project(&project_dir(app))?;
     let out = Command::new(bin)
         .arg("compose")
         .args(args)
@@ -142,9 +142,11 @@ fn get_project_dir(app: tauri::AppHandle) -> String {
 
 #[tauri::command]
 fn set_project_dir(app: tauri::AppHandle, dir: String) -> Result<(), String> {
+    let dir = freqtrade::validate_voltra_project(Path::new(dir.trim()))?;
     let cfg = app.path().app_config_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&cfg).map_err(|e| e.to_string())?;
-    std::fs::write(cfg.join("project_dir.txt"), dir).map_err(|e| e.to_string())
+    std::fs::write(cfg.join("project_dir.txt"), dir.to_string_lossy().as_ref())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -202,9 +204,10 @@ fn remote_creds() -> Result<(String, String), String> {
     let pass = kr_entry("remote_webui_password")?
         .get_password()
         .map_err(|_| "Save the remote WebUI username and password first.".to_string())?;
-    if user.trim().is_empty() || pass.trim().is_empty() {
-        return Err("Save the remote WebUI username and password first.".into());
-    }
+    let user = user.trim().to_string();
+    let pass = pass.trim().to_string();
+    freqtrade::validate_secret_value("WebUI username", &user, 128)?;
+    freqtrade::validate_secret_value("WebUI password", &pass, 256)?;
     Ok((user, pass))
 }
 
@@ -219,26 +222,36 @@ fn fleet_bots(app: &tauri::AppHandle) -> Result<Vec<freqtrade::BotInfo>, String>
     }
 }
 
+fn open_allowlisted(url: &str) {
+    if freqtrade::is_allowed_open_url(url) {
+        let _ = open::that(url);
+    }
+}
+
 #[tauri::command]
 fn open_dashboard(app: tauri::AppHandle) {
-    let url = if is_remote_mode(&app) {
-        remote_origin(&app).unwrap_or_else(|| "http://127.0.0.1:8899".into())
-    } else {
-        "http://127.0.0.1:8899".into()
-    };
-    let _ = open::that(url);
+    if is_remote_mode(&app) {
+        if let Some(origin) = remote_origin(&app) {
+            if let Ok(url) = freqtrade::remote_cockpit_url(&origin) {
+                open_allowlisted(&url);
+            }
+        }
+        return;
+    }
+    open_allowlisted("http://127.0.0.1:8899");
 }
 
 #[tauri::command]
 fn open_frequi(app: tauri::AppHandle) {
-    let url = if is_remote_mode(&app) {
-        remote_origin(&app)
-            .map(|o| format!("{o}/frequi"))
-            .unwrap_or_else(|| "http://127.0.0.1:8080".into())
-    } else {
-        "http://127.0.0.1:8080".into()
-    };
-    let _ = open::that(url);
+    if is_remote_mode(&app) {
+        if let Some(origin) = remote_origin(&app) {
+            if let Ok(url) = freqtrade::remote_frequi_url(&origin) {
+                open_allowlisted(&url);
+            }
+        }
+        return;
+    }
+    open_allowlisted("http://127.0.0.1:8080");
 }
 
 // ---------------------------------------------------------------------------
@@ -262,9 +275,8 @@ fn kr_entry(name: &str) -> Result<keyring::Entry, String> {
 #[tauri::command]
 fn save_kraken_key(key: String, secret: String) -> Result<(), String> {
     let (key, secret) = (key.trim(), secret.trim());
-    if key.is_empty() || secret.is_empty() {
-        return Err("Both the API key and secret are required.".into());
-    }
+    freqtrade::validate_secret_value("Kraken API key", key, 256)?;
+    freqtrade::validate_secret_value("Kraken API secret", secret, 512)?;
     kr_entry("kraken_api_key")?
         .set_password(key)
         .map_err(|e| format!("could not save key: {e}"))?;
@@ -312,7 +324,7 @@ fn clear_kraken_key() -> Result<(), String> {
 fn open_kraken_api_page() {
     // Kraken Pro API-key management. The user creates a TRADE-ONLY, NO-withdrawal,
     // IP-whitelisted key here, then pastes it back into the app.
-    let _ = open::that("https://pro.kraken.com/app/settings/api");
+    open_allowlisted("https://pro.kraken.com/app/settings/api");
 }
 
 // Upsert `KEY=value` in a list of .env lines.
@@ -336,12 +348,15 @@ fn apply_kraken_key_to_env(app: tauri::AppHandle) -> Result<String, String> {
         .get_password()
         .map_err(|_| "No Kraken secret saved yet — save one first.".to_string())?;
 
-    let env_path = project_dir(&app).join(".env");
+    freqtrade::validate_secret_value("Kraken API key", &key, 256)?;
+    freqtrade::validate_secret_value("Kraken API secret", &secret, 512)?;
+    let env_path = freqtrade::validate_voltra_project(&project_dir(&app))?.join(".env");
     let existing = std::fs::read_to_string(&env_path).unwrap_or_default();
     let mut lines: Vec<String> = existing.lines().map(|l| l.to_string()).collect();
     upsert_env(&mut lines, "FREQTRADE__EXCHANGE__KEY", &key);
     upsert_env(&mut lines, "FREQTRADE__EXCHANGE__SECRET", &secret);
     std::fs::write(&env_path, lines.join("\n") + "\n").map_err(|e| e.to_string())?;
+    freqtrade::restrict_env_file_permissions(&env_path);
 
     Ok("Key written to .env. Restart the stack to load it. Dry-run stays ON — \
         going live is a separate, manual step.".into())
@@ -380,7 +395,7 @@ fn docker_health(app: tauri::AppHandle) -> DockerHealth {
 
 #[tauri::command]
 fn copy_env_example(app: tauri::AppHandle) -> Result<String, String> {
-    let dir = project_dir(&app);
+    let dir = freqtrade::validate_voltra_project(&project_dir(&app))?;
     let src = dir.join(".env.example");
     let dest = dir.join(".env");
     if dest.exists() {
@@ -390,6 +405,7 @@ fn copy_env_example(app: tauri::AppHandle) -> Result<String, String> {
         return Err("No .env.example in the project folder.".into());
     }
     std::fs::copy(&src, &dest).map_err(|e| e.to_string())?;
+    freqtrade::restrict_env_file_permissions(&dest);
     Ok("Copied .env.example → .env. Set FREQTRADE__API_SERVER__PASSWORD, then refresh.".into())
 }
 
@@ -402,7 +418,7 @@ fn open_docker_install() {
     } else {
         "https://docs.docker.com/engine/install/"
     };
-    let _ = open::that(url);
+    open_allowlisted(url);
 }
 
 #[derive(Serialize)]
@@ -456,9 +472,8 @@ fn set_remote_origin(app: tauri::AppHandle, origin: String) -> Result<String, St
 #[tauri::command]
 fn save_remote_webui(user: String, password: String) -> Result<(), String> {
     let (user, password) = (user.trim(), password.trim());
-    if user.is_empty() || password.is_empty() {
-        return Err("Remote WebUI username and password are required.".into());
-    }
+    freqtrade::validate_secret_value("WebUI username", user, 128)?;
+    freqtrade::validate_secret_value("WebUI password", password, 256)?;
     kr_entry("remote_webui_user")?
         .set_password(user)
         .map_err(|e| format!("could not save user: {e}"))?;
@@ -489,8 +504,11 @@ fn bot_catalog(app: tauri::AppHandle) -> Result<Vec<freqtrade::BotInfo>, String>
 #[tauri::command]
 fn bot_snapshot(app: tauri::AppHandle, url: String) -> Result<freqtrade::BotSnapshot, String> {
     if is_remote_mode(&app) {
+        let origin = remote_origin(&app).ok_or_else(|| {
+            "Set a remote origin like https://trade.example.com first.".to_string()
+        })?;
         let (user, pass) = remote_creds()?;
-        freqtrade::fetch_snapshot_with_creds(&url, &user, &pass)
+        freqtrade::fetch_snapshot_on_origin(&origin, &url, &user, &pass)
     } else {
         freqtrade::fetch_snapshot(&project_dir(&app), &url)
     }
@@ -525,7 +543,7 @@ fn probe_remote(app: tauri::AppHandle) -> Result<String, String> {
         .iter()
         .find(|b| b.slug == "dry")
         .ok_or_else(|| "remote catalog missing /bot/dry".to_string())?;
-    let snap = freqtrade::fetch_snapshot_with_creds(&dry.url, &user, &pass)?;
+    let snap = freqtrade::fetch_snapshot_on_origin(&origin, &dry.url, &user, &pass)?;
     if snap.live_tripwire {
         return Err(format!(
             "LIVE TRIPWIRE on {origin}/bot/dry — dry_run is false. The controller did not enable that."
@@ -542,7 +560,6 @@ fn probe_remote(app: tauri::AppHandle) -> Result<String, String> {
 
 fn main() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(

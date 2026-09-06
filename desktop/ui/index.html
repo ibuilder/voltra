@@ -57,30 +57,30 @@
   </header>
   <main>
     <div class="row">
-      <button id="modeLocal" class="primary" onclick="setMode('local')">Local stack</button>
-      <button id="modeRemote" onclick="setMode('remote')">Remote VPS</button>
+      <button type="button" id="modeLocal" class="primary">Local stack</button>
+      <button type="button" id="modeRemote">Remote VPS</button>
     </div>
     <div id="localOnly">
       <div class="row">
-        <button class="primary" onclick="up()">▶ Start stack</button>
-        <button onclick="down()">■ Stop stack</button>
+        <button type="button" id="btnUp" class="primary">▶ Start stack</button>
+        <button type="button" id="btnDown">■ Stop stack</button>
       </div>
       <div class="row">
-        <button onclick="refresh()">↻ Refresh status</button>
-        <button onclick="dashboard()">Open dashboard ↗</button>
+        <button type="button" id="btnRefreshLocal">↻ Refresh status</button>
+        <button type="button" id="btnDashboardLocal">Open dashboard ↗</button>
       </div>
       <div id="dockerBanner" class="banner warn" hidden></div>
       <div class="row" id="dockerActions" hidden>
-        <button onclick="openDocker()">Install Docker ↗</button>
-        <button onclick="copyEnv()">Copy .env.example</button>
+        <button type="button" id="btnDockerInstall">Install Docker ↗</button>
+        <button type="button" id="btnCopyEnv">Copy .env.example</button>
       </div>
       <div id="services"></div>
-      <label><input type="checkbox" id="autostart" onchange="toggleAutostart()"> Start automatically when I sign in</label>
+      <label><input type="checkbox" id="autostart"> Start automatically when I sign in</label>
       <div class="path">
         <div style="font-size:12px;color:#94a3b8;margin-bottom:4px;">Project folder (where docker-compose.yml lives)</div>
         <div class="row" style="margin-bottom:0">
-          <input id="dir" onchange="saveDir()" />
-          <button style="flex:0 0 88px" onclick="browseDir()">Browse</button>
+          <input id="dir" />
+          <button type="button" id="btnBrowse" style="flex:0 0 88px">Browse</button>
         </div>
       </div>
     </div>
@@ -97,16 +97,16 @@
       <input id="remoteUser" placeholder="WebUI username" autocomplete="username" />
       <input id="remotePass" type="password" placeholder="WebUI password" autocomplete="off" />
       <div class="row">
-        <button class="primary" onclick="saveRemote()">Save &amp; connect</button>
-        <button onclick="clearRemote()">Clear</button>
+        <button type="button" id="btnSaveRemote" class="primary">Save &amp; connect</button>
+        <button type="button" id="btnClearRemote">Clear</button>
       </div>
       <div class="row">
-        <button class="primary" onclick="probeRemote()">Test TLS connection</button>
-        <button onclick="dashboard()">Open cockpit ↗</button>
+        <button type="button" id="btnProbeRemote" class="primary">Test TLS connection</button>
+        <button type="button" id="btnDashboardRemote">Open cockpit ↗</button>
       </div>
       <div class="row">
-        <button onclick="frequi()">Open FreqUI ↗</button>
-        <button onclick="refresh()">↻ Refresh fleet</button>
+        <button type="button" id="btnFrequi">Open FreqUI ↗</button>
+        <button type="button" id="btnRefreshRemote">↻ Refresh fleet</button>
       </div>
       <p id="remoteHint" class="hint"></p>
     </section>
@@ -117,7 +117,7 @@
       </div>
       <p class="hint">Read-only fleet (JWT). Tokens stay in the Rust process. This never enables live trading.</p>
       <div id="fleet" class="fleet"></div>
-      <select id="botUrl" onchange="refreshSnapshot()" hidden></select>
+      <select id="botUrl" hidden></select>
       <div id="tripwire" class="trip" hidden>LIVE TRIPWIRE — this bot reports dry_run=false. The controller did not enable that. Stop the stack and inspect config.</div>
       <div class="kpis">
         <div class="kpi"><div class="lbl">Balance</div><div class="val" id="kpiBal">—</div></div>
@@ -140,16 +140,16 @@
         Manager, never in a plaintext file. Saving a key does <b>not</b> start live
         trading — the bots stay in dry-run.
       </p>
-      <button class="link" onclick="openKraken()">Open Kraken API page ↗</button>
+      <button type="button" class="link" id="btnOpenKraken">Open Kraken API page ↗</button>
       <p class="hint">On that page, create a key with <b>Query + Trade</b> permissions,
         <b>no Withdraw</b>, and IP-whitelisted to this machine.</p>
       <input id="apiKey" placeholder="API key" autocomplete="off" />
       <input id="apiSecret" type="password" placeholder="API secret" autocomplete="off" />
       <div class="row">
-        <button class="primary" onclick="saveKey()">Save securely</button>
-        <button onclick="clearKey()">Clear</button>
+        <button type="button" id="btnSaveKey" class="primary">Save securely</button>
+        <button type="button" id="btnClearKey">Clear</button>
       </div>
-      <button onclick="applyKey()">Apply to bot (.env) — prepares go-live, stays dry-run</button>
+      <button type="button" id="btnApplyKey">Apply to bot (.env) — prepares go-live, stays dry-run</button>
     </section>
 
     <p id="msg"></p>
@@ -159,274 +159,6 @@
     human-only change. Not financial advice; you can lose money.
   </footer>
 
-<script type="module">
-  const { invoke } = window.__TAURI__.core;
-  const { listen } = window.__TAURI__.event;
-
-  const msg = (t) => document.getElementById("msg").textContent = t;
-
-  window.up = async () => { msg("starting…"); try { await invoke("stack_up"); msg("stack started"); } catch(e){ msg("error: "+e); } refresh(); };
-  window.down = async () => { msg("stopping…"); try { await invoke("stack_down"); msg("stack stopped"); } catch(e){ msg("error: "+e); } refresh(); };
-  window.dashboard = () => invoke("open_dashboard");
-  window.frequi = () => invoke("open_frequi");
-
-  let MODE = "local";
-
-  function paintMode() {
-    const remote = MODE === "remote";
-    document.getElementById("localOnly").hidden = remote;
-    document.getElementById("remoteOnly").hidden = !remote;
-    document.getElementById("modeLocal").className = remote ? "" : "primary";
-    document.getElementById("modeRemote").className = remote ? "primary" : "";
-  }
-
-  window.setMode = async (mode) => {
-    try {
-      await invoke("set_connection_mode", { mode });
-      MODE = mode;
-      paintMode();
-      document.getElementById("botUrl").innerHTML = "";
-      await loadConnection();
-      refresh();
-    } catch (e) { msg("error: " + e); }
-  };
-
-  window.loadConnection = async () => {
-    const c = await invoke("get_connection");
-    MODE = c.mode === "remote" ? "remote" : "local";
-    paintMode();
-    if (c.remote_origin) document.getElementById("remoteOrigin").value = c.remote_origin;
-    const pill = document.getElementById("remotePill");
-    if (c.remote_origin && c.remote_user_saved) {
-      pill.textContent = "saved · " + (c.remote_user_hint || "user");
-      pill.className = "pill ok";
-      document.getElementById("remoteHint").textContent = "Talking to " + c.remote_origin + " over TLS.";
-    } else {
-      pill.textContent = "not set";
-      pill.className = "pill bad";
-      document.getElementById("remoteHint").textContent = "Save origin + WebUI login to load the remote fleet.";
-    }
-  };
-
-  window.saveRemote = async () => {
-    try {
-      const origin = await invoke("set_remote_origin", { origin: document.getElementById("remoteOrigin").value });
-      document.getElementById("remoteOrigin").value = origin;
-      const user = document.getElementById("remoteUser").value;
-      const password = document.getElementById("remotePass").value;
-      if (user && password) {
-        await invoke("save_remote_webui", { user, password });
-        document.getElementById("remotePass").value = "";
-      }
-      await invoke("set_connection_mode", { mode: "remote" });
-      MODE = "remote";
-      paintMode();
-      document.getElementById("botUrl").innerHTML = "";
-      msg("Remote console saved. Dry-run is never flipped.");
-      await loadConnection();
-      refresh();
-    } catch (e) { msg("error: " + e); }
-  };
-
-  window.clearRemote = async () => {
-    try {
-      await invoke("clear_remote_webui");
-      msg("Remote WebUI login cleared");
-      await loadConnection();
-    } catch (e) { msg("error: " + e); }
-  };
-  window.saveDir = async () => { await invoke("set_project_dir", { dir: document.getElementById("dir").value }); msg("project folder saved"); refresh(); };
-  window.browseDir = async () => {
-    try {
-      const dir = await invoke("pick_project_dir");
-      if (dir) { document.getElementById("dir").value = dir; msg("project folder saved"); refresh(); }
-    } catch (e) { msg("error: " + e); }
-  };
-  window.probeRemote = async () => {
-    msg("testing TLS…");
-    try { msg(await invoke("probe_remote")); }
-    catch (e) { msg("error: " + e); }
-  };
-  window.toggleAutostart = async () => {
-    const on = document.getElementById("autostart").checked;
-    try { await invoke("set_autostart", { enabled: on }); msg(on ? "will start at login" : "autostart off"); }
-    catch(e){ msg("error: "+e); }
-  };
-
-  window.openKraken = () => invoke("open_kraken_api_page");
-
-  window.refreshKeyState = async () => {
-    try {
-      const s = await invoke("kraken_key_status");
-      const el = document.getElementById("keyState");
-      el.textContent = s.saved ? ("saved · " + s.hint) : "not saved";
-      el.className = "pill " + (s.saved ? "ok" : "bad");
-    } catch (e) { msg("key status error: " + e); }
-  };
-
-  window.saveKey = async () => {
-    const key = document.getElementById("apiKey").value;
-    const secret = document.getElementById("apiSecret").value;
-    try {
-      await invoke("save_kraken_key", { key, secret });
-      document.getElementById("apiKey").value = "";
-      document.getElementById("apiSecret").value = "";
-      msg("Kraken key saved (encrypted in Windows Credential Manager)");
-    } catch (e) { msg("error: " + e); }
-    refreshKeyState();
-  };
-
-  window.clearKey = async () => {
-    try { await invoke("clear_kraken_key"); msg("Kraken key cleared"); }
-    catch (e) { msg("error: " + e); }
-    refreshKeyState();
-  };
-
-  window.applyKey = async () => {
-    try { msg(await invoke("apply_kraken_key_to_env")); }
-    catch (e) { msg("error: " + e); }
-  };
-
-  const usd = (v) => v == null ? "—" : Number(v).toLocaleString("en-US", { style: "currency", currency: "USD" });
-  const pct = (v) => v == null ? "—" : `${(Number(v) * 100).toFixed(2)}%`;
-  const signedPct = (v) => `${v >= 0 ? "+" : ""}${(Number(v) * 100).toFixed(2)}%`;
-  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
-
-  window.openDocker = () => invoke("open_docker_install");
-  window.copyEnv = async () => {
-    try { msg(await invoke("copy_env_example")); } catch (e) { msg("error: " + e); }
-    refresh();
-  };
-
-  window.refreshDocker = async () => {
-    try {
-      const h = await invoke("docker_health");
-      const banner = document.getElementById("dockerBanner");
-      const actions = document.getElementById("dockerActions");
-      banner.hidden = false;
-      banner.className = "banner " + (h.ready ? "ok" : "warn");
-      banner.textContent = h.hint;
-      actions.hidden = h.ready;
-    } catch (e) { msg("docker check: " + e); }
-  };
-
-  function renderFleet(entries) {
-    const wrap = document.getElementById("fleet");
-    const sel = document.getElementById("botUrl");
-    if (!entries.length) { wrap.innerHTML = ""; return; }
-    if (!sel.value) sel.value = entries[0].snapshot.url;
-    wrap.onclick = (ev) => {
-      const btn = ev.target.closest("[data-url]");
-      if (btn) selectBot(btn.getAttribute("data-url"));
-    };
-    wrap.innerHTML = entries.map((e) => {
-      const s = e.snapshot;
-      const active = s.url === sel.value ? " active" : "";
-      const mode = !s.reachable ? "offline" : (s.live_tripwire ? "LIVE" : "dry-run");
-      const cls = !s.reachable || s.live_tripwire ? "bad" : "ok";
-      const pnl = s.reachable ? usd(s.total_pnl) : "—";
-      const pos = s.reachable ? `${s.open_positions.length} open` : (s.error || "offline");
-      return `<button type="button" class="botcard${active}" data-url="${esc(s.url)}">
-        <div class="top"><span>${esc(e.label)}</span><span class="${cls}">${esc(mode)} · ${esc(pnl)}</span></div>
-        <div class="sub">${esc(pos)}</div>
-      </button>`;
-    }).join("");
-  }
-
-  window.selectBot = (url) => {
-    document.getElementById("botUrl").value = url;
-    refreshSnapshot();
-  };
-
-  window.refreshSnapshot = async () => {
-    const sel = document.getElementById("botUrl");
-    const url = sel.value;
-    const mode = document.getElementById("botMode");
-    const trip = document.getElementById("tripwire");
-    try {
-      const s = await invoke("bot_snapshot", { url });
-      trip.hidden = !s.live_tripwire;
-      if (!s.reachable) {
-        mode.textContent = "offline";
-        mode.className = "pill bad";
-        document.getElementById("kpiBal").textContent = "—";
-        document.getElementById("kpiPnl").textContent = "—";
-        document.getElementById("kpiTrades").textContent = "—";
-        document.getElementById("kpiDd").textContent = "—";
-        document.getElementById("botMeta").textContent = s.error || "bot unreachable";
-        document.getElementById("positions").innerHTML = '<p class="hint">Bot not reachable.</p>';
-        return;
-      }
-      mode.textContent = s.live_tripwire ? "LIVE" : "dry-run";
-      mode.className = "pill " + (s.live_tripwire ? "bad" : "ok");
-      document.getElementById("kpiBal").textContent = usd(s.balance);
-      const pnlEl = document.getElementById("kpiPnl");
-      pnlEl.textContent = usd(s.total_pnl);
-      pnlEl.className = "val " + (s.total_pnl >= 0 ? "ok" : "bad");
-      document.getElementById("kpiTrades").textContent =
-        `${s.closed_trades} (${s.winning_trades}W/${s.losing_trades}L)`;
-      document.getElementById("kpiDd").textContent = pct(s.max_drawdown);
-      const parts = [s.strategy, s.state, s.stake_currency].filter(Boolean);
-      document.getElementById("botMeta").textContent =
-        `${parts.join(" · ")} · closed ${usd(s.closed_pnl)} · open ${usd(s.open_pnl)}`;
-      const wrap = document.getElementById("positions");
-      if (!s.open_positions.length) {
-        wrap.innerHTML = '<p class="hint">None — waiting for a setup.</p>';
-      } else {
-        wrap.innerHTML = s.open_positions.map((p) =>
-          `<div class="pos"><span>${esc(p.pair)}</span><span class="${p.profit_ratio >= 0 ? "ok" : "bad"}">${usd(p.profit_abs)} (${signedPct(p.profit_ratio)})</span></div>`
-        ).join("");
-      }
-    } catch (e) {
-      mode.textContent = "error";
-      mode.className = "pill bad";
-      document.getElementById("botMeta").textContent = String(e);
-    }
-  };
-
-  window.refresh = async () => {
-    if (MODE !== "remote") {
-      refreshDocker();
-      try {
-        const svcs = await invoke("stack_status");
-        const el = document.getElementById("services");
-        if (!svcs.length) { el.innerHTML = '<div class="svc"><span>no containers</span><span class="warn">stopped</span></div>'; }
-        else {
-          el.innerHTML = svcs.map(s => {
-            const cls = /healthy|up/i.test(s.status) ? "ok" : "bad";
-            return `<div class="svc"><span>${esc(s.name)}</span><span class="${cls}">${esc(s.status)}</span></div>`;
-          }).join("");
-        }
-      } catch(e){ msg("status error: "+e); }
-    }
-    try {
-      const fleet = await invoke("bot_fleet");
-      const sel = document.getElementById("botUrl");
-      if (!sel.options.length) {
-        sel.innerHTML = fleet.map(e => `<option value="${esc(e.snapshot.url)}">${esc(e.label)}</option>`).join("");
-      }
-      renderFleet(fleet);
-    } catch (e) { msg("fleet error: " + e); }
-    refreshSnapshot();
-  };
-
-  async function boot() {
-    document.getElementById("dir").value = await invoke("get_project_dir");
-    document.getElementById("autostart").checked = await invoke("autostart_enabled");
-    await loadConnection();
-    try {
-      const bots = await invoke("bot_catalog");
-      const sel = document.getElementById("botUrl");
-      sel.innerHTML = bots.map(b => `<option value="${esc(b.url)}">${esc(b.label)}</option>`).join("");
-    } catch (e) { msg("catalog: " + e); }
-    refreshKeyState();
-    if (MODE !== "remote") refreshDocker();
-    refresh();
-    setInterval(refresh, 15000);
-    setInterval(() => { if (MODE !== "remote") refreshDocker(); }, 30000);
-  }
-  listen("stack-changed", refresh);
-  boot();
-</script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

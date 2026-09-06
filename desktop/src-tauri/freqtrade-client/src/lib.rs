@@ -9,7 +9,9 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::io::Read;
+use std::net::IpAddr;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -19,6 +21,19 @@ use serde_json::Value;
 const LOGIN_PATH: &str = "/api/v1/token/login";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(8);
 const TOKEN_TTL: Duration = Duration::from_secs(10 * 60);
+const MAX_JSON_BODY: u64 = 256 * 1024;
+const GET_PATHS: &[&str] = &["/show_config", "/profit", "/balance", "/status"];
+const BLOCKED_HOST_SUFFIXES: &[&str] = &[
+    ".localhost",
+    ".local",
+    ".internal",
+    ".lan",
+    ".home",
+    ".corp",
+    ".private",
+    ".invalid",
+    ".test",
+];
 
 /// Hard allowlist — local Docker-mapped APIs.
 const ALLOWED_PORTS: &[u16] = &[8080, 8081, 8082, 8083, 8084];
@@ -218,14 +233,215 @@ pub fn normalize_remote_origin(origin: &str) -> Result<String, String> {
 
 fn is_public_hostname(host: &str) -> bool {
     let host = host.trim_end_matches('.').to_ascii_lowercase();
-    if host.is_empty() || host == "localhost" || host.ends_with(".localhost") {
+    if host.is_empty() || host == "localhost" || !host.is_ascii() {
         return false;
     }
-    if host.parse::<std::net::IpAddr>().is_ok() {
+    // Homograph / IDN hosts — require the operator to use the ASCII form we can audit.
+    if host.contains("xn--") {
         return false;
     }
-    // Require a real domain (dot) so LAN short names and IPs-as-text don't slip in.
-    host.contains('.') && !host.starts_with('.') && !host.ends_with('.')
+    if host.parse::<IpAddr>().is_ok() {
+        return false;
+    }
+    if !host.contains('.') || host.starts_with('.') || host.ends_with('.') || host.contains("..") {
+        return false;
+    }
+    if BLOCKED_HOST_SUFFIXES.iter().any(|s| host.ends_with(s)) {
+        return false;
+    }
+    let labels: Vec<&str> = host.split('.').collect();
+    if labels.len() < 2 || host.len() > 253 {
+        return false;
+    }
+    let Some(tld) = labels.last() else {
+        return false;
+    };
+    if tld.len() < 2 || !tld.bytes().all(|b| b.is_ascii_lowercase()) {
+        return false;
+    }
+    labels.iter().all(|label| is_dns_label(label))
+}
+
+fn is_dns_label(label: &str) -> bool {
+    let b = label.as_bytes();
+    if b.is_empty() || b.len() > 63 {
+        return false;
+    }
+    if !b[0].is_ascii_alphanumeric() || !b[b.len() - 1].is_ascii_alphanumeric() {
+        return false;
+    }
+    b.iter()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == b'-')
+}
+
+/// Snapshot URLs in remote mode must be on the *saved* origin — not any public host.
+pub fn bind_remote_bot_url(url: &str, origin: &str) -> Result<String, String> {
+    let origin = normalize_remote_origin(origin)?;
+    let url = allowed_bot_url(url)?;
+    let prefix = format!("{origin}/bot/");
+    if !url.starts_with(&prefix) {
+        return Err("bot URL is not on the saved remote origin".into());
+    }
+    Ok(url)
+}
+
+/// Browser-open allowlist. Never pass webview strings through `open::that`.
+pub fn is_allowed_open_url(url: &str) -> bool {
+    matches!(
+        url,
+        "http://127.0.0.1:8899"
+            | "http://127.0.0.1:8080"
+            | "https://pro.kraken.com/app/settings/api"
+            | "https://docs.docker.com/desktop/setup/install/mac-install/"
+            | "https://docs.docker.com/desktop/setup/install/windows-install/"
+            | "https://docs.docker.com/engine/install/"
+    ) || allowed_remote_cockpit_url(url).is_ok()
+}
+
+fn allowed_remote_cockpit_url(url: &str) -> Result<String, String> {
+    let parsed = url::Url::parse(url.trim()).map_err(|_| "invalid open URL".to_string())?;
+    if parsed.scheme() != "https" {
+        return Err("open URL must be https".into());
+    }
+    if parsed.query().is_some() || parsed.fragment().is_some() {
+        return Err("open URL must not include query or fragment".into());
+    }
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("open URL must not include credentials".into());
+    }
+    if let Some(port) = parsed.port() {
+        if port != 443 {
+            return Err("open URL must use port 443".into());
+        }
+    }
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| "open URL missing host".to_string())?
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    if !is_public_hostname(&host) {
+        return Err("open URL host is not a public hostname".into());
+    }
+    let path = parsed.path().trim_end_matches('/');
+    if path.is_empty() || path == "/" || path == "/frequi" {
+        return Ok(format!(
+            "https://{host}{}",
+            if path == "/frequi" { "/frequi" } else { "" }
+        ));
+    }
+    Err("open URL path is not allowlisted".into())
+}
+
+pub fn remote_cockpit_url(origin: &str) -> Result<String, String> {
+    let origin = normalize_remote_origin(origin)?;
+    if !is_allowed_open_url(&origin) {
+        return Err("refusing to open a non-allowlisted cockpit URL".into());
+    }
+    Ok(origin)
+}
+
+pub fn remote_frequi_url(origin: &str) -> Result<String, String> {
+    let origin = normalize_remote_origin(origin)?;
+    let url = format!("{origin}/frequi");
+    if !is_allowed_open_url(&url) {
+        return Err("refusing to open a non-allowlisted FreqUI URL".into());
+    }
+    Ok(url)
+}
+
+/// Refuse secrets that could inject HTTP headers or `.env` lines.
+pub fn validate_secret_value(label: &str, value: &str, max_len: usize) -> Result<(), String> {
+    if value.is_empty() {
+        return Err(format!("{label} is required"));
+    }
+    if value.len() > max_len {
+        return Err(format!("{label} is too long"));
+    }
+    if value.bytes().any(|b| b < 0x20 || b == 0x7f) {
+        return Err(format!("{label} contains control characters"));
+    }
+    Ok(())
+}
+
+/// Compose / `.env` writes only happen inside a folder that looks like Voltra.
+pub fn validate_voltra_project(dir: &Path) -> Result<PathBuf, String> {
+    if dir.as_os_str().is_empty() {
+        return Err("project folder is empty".into());
+    }
+    let meta = fs::metadata(dir).map_err(|_| {
+        "project folder does not exist — pick the Voltra checkout with docker-compose.yml".to_string()
+    })?;
+    if !meta.is_dir() {
+        return Err("project path is not a folder".into());
+    }
+    let canonical = fs::canonicalize(dir).map_err(|e| format!("could not resolve project folder: {e}"))?;
+    if !canonical.join("docker-compose.yml").is_file() {
+        return Err("folder must contain docker-compose.yml (Voltra checkout)".into());
+    }
+    Ok(canonical)
+}
+
+pub fn restrict_env_file_permissions(path: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = fs::metadata(path) {
+            let mut perms = meta.permissions();
+            perms.set_mode(0o600);
+            let _ = fs::set_permissions(path, perms);
+        }
+    }
+}
+
+fn is_globally_routable(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v) => {
+            let o = v.octets();
+            let cgnat = o[0] == 100 && (o[1] & 0xc0) == 64;
+            !v.is_unspecified()
+                && !v.is_loopback()
+                && !v.is_private()
+                && !v.is_link_local()
+                && !v.is_broadcast()
+                && !v.is_multicast()
+                && !v.is_documentation()
+                && !cgnat
+                && o[0] != 0
+        }
+        IpAddr::V6(v) => {
+            !v.is_unspecified()
+                && !v.is_loopback()
+                && !v.is_multicast()
+                && !v.is_unique_local()
+                && !v.is_unicast_link_local()
+                && v.to_ipv4_mapped().is_none_or(|m| is_globally_routable(IpAddr::V4(m)))
+        }
+    }
+}
+
+fn assert_https_peer_is_public(base: &str) -> Result<(), String> {
+    let parsed = url::Url::parse(base).map_err(|_| "invalid bot URL".to_string())?;
+    if parsed.scheme() != "https" {
+        return Ok(());
+    }
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| "bot URL missing host".to_string())?;
+    use std::net::ToSocketAddrs;
+    let addrs = (host, 443)
+        .to_socket_addrs()
+        .map_err(|_| format!("could not resolve {host}"))?;
+    let mut any = false;
+    for addr in addrs {
+        any = true;
+        if !is_globally_routable(addr.ip()) {
+            return Err("remote host resolves to a private or local address".into());
+        }
+    }
+    if !any {
+        return Err(format!("could not resolve {host}"));
+    }
+    Ok(())
 }
 
 /// Local `http://127.0.0.1:<port>` **or** `https://host/bot/<slug>`.
@@ -318,6 +534,8 @@ pub fn parse_env_creds(env_text: &str) -> Result<(String, String), String> {
     let pass = pass.ok_or_else(|| {
         "FREQTRADE__API_SERVER__PASSWORD missing in .env — set the WebUI password".to_string()
     })?;
+    validate_secret_value("WebUI username", &user, 128)?;
+    validate_secret_value("WebUI password", &pass, 256)?;
     Ok((user, pass))
 }
 
@@ -349,16 +567,49 @@ fn basic_auth(user: &str, pass: &str) -> String {
 }
 
 fn http_agent() -> ureq::Agent {
-    ureq::AgentBuilder::new().timeout(REQUEST_TIMEOUT).build()
+    // Never follow redirects — a 302 would forward Authorization to a new host.
+    ureq::AgentBuilder::new()
+        .timeout(REQUEST_TIMEOUT)
+        .redirects(0)
+        .build()
+}
+
+fn response_json(resp: ureq::Response, what: &str) -> Result<Value, String> {
+    let mut buf = Vec::new();
+    resp.into_reader()
+        .take(MAX_JSON_BODY + 1)
+        .read_to_end(&mut buf)
+        .map_err(|e| format!("{what}: {e}"))?;
+    if buf.len() as u64 > MAX_JSON_BODY {
+        return Err(format!("{what}: response too large"));
+    }
+    serde_json::from_slice(&buf).map_err(|e| format!("{what}: {e}"))
+}
+
+fn sanitize_access_token(token: &str) -> Result<String, String> {
+    let token = token.trim();
+    if token.is_empty() || token.len() > 8192 {
+        return Err("login returned an invalid access_token".into());
+    }
+    let ok = token.bytes().all(|b| {
+        b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-' | b'+' | b'/' | b'=')
+    });
+    if !ok {
+        return Err("login returned an invalid access_token".into());
+    }
+    Ok(token.to_string())
 }
 
 fn login(base: &str, user: &str, pass: &str) -> Result<String, String> {
+    validate_secret_value("WebUI username", user, 128)?;
+    validate_secret_value("WebUI password", pass, 256)?;
     let resp = match http_agent()
         .post(&format!("{base}{LOGIN_PATH}"))
         .set("Authorization", &format!("Basic {}", basic_auth(user, pass)))
         .call()
     {
-        Ok(r) => r,
+        Ok(r) if r.status() == 200 => r,
+        Ok(r) => return Err(format!("login failed (HTTP {})", r.status())),
         Err(ureq::Error::Status(401, _)) => {
             return Err(
                 "login failed (HTTP 401) — check the FreqUI / WebUI password".into(),
@@ -369,15 +620,31 @@ fn login(base: &str, user: &str, pass: &str) -> Result<String, String> {
         }
         Err(e) => return Err(format!("login failed: {e}")),
     };
-    let body: Value = resp.into_json().map_err(|e| format!("login response: {e}"))?;
-    body.get("access_token")
+    let body = response_json(resp, "login response")?;
+    let token = body
+        .get("access_token")
         .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .ok_or_else(|| "login response missing access_token".into())
+        .ok_or_else(|| "login response missing access_token".to_string())?;
+    sanitize_access_token(token)
 }
 
 fn creds_cache_key(base: &str, user: &str, pass: &str) -> String {
-    format!("{base}\n{user}\n{pass}")
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(base.as_bytes());
+    hasher.update([0xff]);
+    hasher.update(user.as_bytes());
+    hasher.update([0xff]);
+    hasher.update(pass.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+fn allowlisted_get_path(path: &str) -> Result<&'static str, String> {
+    GET_PATHS
+        .iter()
+        .copied()
+        .find(|p| *p == path)
+        .ok_or_else(|| "internal: refused non-allowlisted API path".to_string())
 }
 
 fn cached_token(base: &str, user: &str, pass: &str) -> Result<String, String> {
@@ -410,6 +677,7 @@ fn invalidate_token(base: &str, user: &str, pass: &str) {
 }
 
 fn get_json(base: &str, path: &str, token: &str) -> Result<(u16, Value), String> {
+    let path = allowlisted_get_path(path)?;
     let resp = match http_agent()
         .get(&format!("{base}/api/v1{path}"))
         .set("Authorization", &format!("Bearer {token}"))
@@ -420,12 +688,10 @@ fn get_json(base: &str, path: &str, token: &str) -> Result<(u16, Value), String>
         Err(e) => return Err(format!("{path}: {e}")),
     };
     let status = resp.status();
-    let body = if status >= 400 {
-        Value::Null
-    } else {
-        resp.into_json().map_err(|e| format!("{path} body: {e}"))?
-    };
-    Ok((status, body))
+    if !(200..300).contains(&status) {
+        return Ok((status, Value::Null));
+    }
+    Ok((status, response_json(resp, path)?))
 }
 
 fn get_json_authed(
@@ -443,12 +709,12 @@ fn get_json_authed(
         if status == 401 {
             return Err("unauthorized — WebUI password rejected".into());
         }
-        if status >= 400 {
+        if !(200..300).contains(&status) {
             return Err(format!("{path} → HTTP {status}"));
         }
         return Ok(body);
     }
-    if status >= 400 {
+    if !(200..300).contains(&status) {
         return Err(format!("{path} → HTTP {status}"));
     }
     Ok(body)
@@ -637,10 +903,24 @@ pub fn fetch_snapshot_with_creds(
     pass: &str,
 ) -> Result<BotSnapshot, String> {
     let base = allowed_bot_url(url)?;
+    if let Err(e) = assert_https_peer_is_public(&base) {
+        return Ok(BotSnapshot::unreachable(&base, e));
+    }
     match fetch_snapshot_authed(&base, user, pass) {
         Ok(snap) => Ok(snap),
         Err(e) => Ok(BotSnapshot::unreachable(&base, e)),
     }
+}
+
+/// Remote snapshots must target the saved origin (stops sending WebUI creds elsewhere).
+pub fn fetch_snapshot_on_origin(
+    origin: &str,
+    url: &str,
+    user: &str,
+    pass: &str,
+) -> Result<BotSnapshot, String> {
+    let url = bind_remote_bot_url(url, origin)?;
+    fetch_snapshot_with_creds(&url, user, pass)
 }
 
 fn fetch_snapshot_authed(base: &str, user: &str, pass: &str) -> Result<BotSnapshot, String> {
@@ -663,6 +943,10 @@ mod tests {
             "http://127.0.0.1:8080"
         );
         assert!(allowed_bot_url("http://localhost:8084").is_ok());
+        assert_eq!(
+            allowed_bot_url("http://localhost:8084").unwrap(),
+            "http://127.0.0.1:8084"
+        );
     }
 
     #[test]
@@ -710,6 +994,46 @@ mod tests {
         assert!(allowed_bot_url("https://trade.example.com/bot/dry/api/v1").is_err());
         assert!(allowed_bot_url("http://trade.example.com/bot/dry").is_err());
         assert!(allowed_bot_url("https://user:pw@trade.example.com/bot/dry").is_err());
+        assert!(allowed_bot_url("https://xn--fsq.com/bot/dry").is_err());
+        assert!(allowed_bot_url("https://bot.local/bot/dry").is_err());
+        assert!(allowed_bot_url("https://trade.example.internal/bot/dry").is_err());
+        assert!(allowed_bot_url("http://[::1]:8080").is_err());
+    }
+
+    #[test]
+    fn remote_snapshot_url_must_match_saved_origin() {
+        assert_eq!(
+            bind_remote_bot_url("https://trade.example.com/bot/dry", "https://trade.example.com")
+                .unwrap(),
+            "https://trade.example.com/bot/dry"
+        );
+        assert!(bind_remote_bot_url(
+            "https://evil.example.com/bot/dry",
+            "https://trade.example.com"
+        )
+        .is_err());
+        assert!(is_allowed_open_url("https://trade.example.com/frequi"));
+        assert!(is_allowed_open_url("http://127.0.0.1:8899"));
+        assert!(!is_allowed_open_url("https://evil.example.com/steal"));
+        assert!(!is_allowed_open_url("javascript:alert(1)"));
+        assert_eq!(
+            remote_frequi_url("https://trade.example.com").unwrap(),
+            "https://trade.example.com/frequi"
+        );
+    }
+
+    #[test]
+    fn secrets_and_project_dir_reject_unsafe_input() {
+        assert!(validate_secret_value("password", "ok-secret", 32).is_ok());
+        assert!(validate_secret_value("password", "bad\nsecret", 32).is_err());
+        assert!(validate_secret_value("password", "bad\rsecret", 32).is_err());
+        assert!(validate_secret_value("password", "", 32).is_err());
+        let tmp = std::env::temp_dir().join(format!("voltra-proj-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+        assert!(validate_voltra_project(&tmp).is_err());
+        std::fs::write(tmp.join("docker-compose.yml"), "services: {}\n").unwrap();
+        assert!(validate_voltra_project(&tmp).is_ok());
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]
@@ -846,6 +1170,59 @@ OTHER=ignore
             "{:?}",
             denied.error
         );
+    }
+
+    #[test]
+    fn jwt_login_does_not_follow_redirects() {
+        let port = spawn_redirect_mock().expect("bind a local allowlisted bot port for the redirect mock");
+        let url = format!("http://127.0.0.1:{port}");
+        let snap = fetch_snapshot_with_creds(&url, "voltra", "s3cret").unwrap();
+        assert!(!snap.reachable, "{:?}", snap.error);
+        let err = snap.error.unwrap_or_default();
+        assert!(
+            err.contains("302") || err.contains("login failed"),
+            "{err}"
+        );
+    }
+
+    fn spawn_redirect_mock() -> Option<u16> {
+        use std::io::Write;
+        use std::net::TcpListener;
+        use std::thread;
+        use std::time::Duration;
+
+        let mut bound = None;
+        for port in [8080_u16, 8081, 8082, 8083, 8084] {
+            if let Ok(listener) = TcpListener::bind(("127.0.0.1", port)) {
+                bound = Some((port, listener));
+                break;
+            }
+        }
+        let (port, listener) = bound?;
+        let _ = listener.set_nonblocking(true);
+        thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(8);
+            while Instant::now() < deadline {
+                match listener.accept() {
+                    Ok((mut stream, _)) => {
+                        let _ = stream.set_nonblocking(false);
+                        let _ = read_http_head(&mut stream);
+                        let body = "{}";
+                        let resp = format!(
+                            "HTTP/1.1 302 Found\r\nLocation: https://evil.example.com/steal\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                            body.len()
+                        );
+                        let _ = stream.write_all(resp.as_bytes());
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(15));
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+        thread::sleep(Duration::from_millis(40));
+        Some(port)
     }
 
     fn spawn_freqtrade_mock() -> Option<u16> {
