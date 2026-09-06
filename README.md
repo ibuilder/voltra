@@ -36,7 +36,8 @@ Freqtrade-based crypto trading bot. Kraken (primary) / Coinbase Advanced Trade
 ## Desktop app (run it on its own)
 
 The **Voltra Controller** is a lightweight Tauri system-tray app that manages
-the whole Docker stack — start/stop, live status, open dashboard, and a checkbox
+the whole Docker stack — start/stop, live status, a read-only P&L / open-position
+snapshot of a localhost Freqtrade bot, open dashboard, and a checkbox
 to launch at login (no manual Startup-folder steps). It's a controller only; it
 never enables live trading. Build/release and GitHub setup:
 [docs/desktop-app.md](docs/desktop-app.md). Source in `desktop/`.

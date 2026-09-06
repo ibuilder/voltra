@@ -6,9 +6,12 @@
 // dashboard, and can enable run-on-login on its own.
 //
 // SAFETY: this app never sets dry_run=false or touches live-trading config.
-// It only runs `docker compose up -d / down / ps` in the project directory.
+// It only runs `docker compose up -d / down / ps` in the project directory
+// and read-only Freqtrade REST (JWT snapshot of P&L / positions).
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+use freqtrade_client as freqtrade;
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -232,6 +235,18 @@ fn apply_kraken_key_to_env(app: tauri::AppHandle) -> Result<String, String> {
         going live is a separate, manual step.".into())
 }
 
+#[tauri::command]
+fn bot_catalog() -> Vec<freqtrade::BotInfo> {
+    freqtrade::catalog()
+}
+
+/// JWT-auth to a localhost Freqtrade bot and return P&L + open positions.
+/// Credentials come from the project's `.env` (never from the webview).
+#[tauri::command]
+fn bot_snapshot(app: tauri::AppHandle, url: String) -> Result<freqtrade::BotSnapshot, String> {
+    freqtrade::fetch_snapshot(&project_dir(&app), &url)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -255,6 +270,8 @@ fn main() {
             clear_kraken_key,
             open_kraken_api_page,
             apply_kraken_key_to_env,
+            bot_catalog,
+            bot_snapshot,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

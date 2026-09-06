@@ -7,6 +7,10 @@ milestones (pre-1.0, no semantic-version guarantees yet).
 ## [Unreleased]
 
 ### Added
+- **Desktop live snapshot** — Tauri controller JWT-auths to a localhost
+  Freqtrade bot (creds from `.env`) and shows balance, closed+open P&L,
+  W/L, drawdown, and open positions. Tokens stay in Rust; `dry_run` is
+  never flipped. A LIVE tripwire banner appears if a bot reports live.
 - **Simple cockpit dashboard** (:8899) — single-page, brand-styled: plain-English
   status, Start/Stop/Reload bot-command buttons, an honest **vs-buy-and-hold
   scoreboard**, a strategy-mode switcher, and P/L that includes open positions.

@@ -10,8 +10,9 @@ enables live trading.
 
 - One `Voltra Controller.exe` (NSIS installer + MSI). Double-click installs.
 - Tray icon: Start stack / Stop stack / Open Dashboard / Show / Quit.
-- Window: service list, autostart toggle, project-folder picker, **Kraken API
-  key entry** (OS-encrypted).
+- Window: service list, autostart toggle, project-folder picker, **live
+  snapshot** (JWT to a localhost Freqtrade bot — P&L + open positions),
+  **Kraken API key entry** (OS-encrypted).
 - Auto-updates from signed GitHub Releases (prompts before installing).
 
 ## Prerequisites to build (one-time, on your machine or CI)
@@ -26,6 +27,12 @@ cd desktop
 npm install
 npm run tauri dev      # run it live
 npm run tauri build    # produce the installer in src-tauri/target/release/bundle
+```
+
+Snapshot-client unit tests (no GTK / Docker needed):
+
+```
+cargo test --manifest-path desktop/src-tauri/freqtrade-client/Cargo.toml
 ```
 
 ## Release (what's done vs. what's left)
@@ -87,6 +94,16 @@ installed apps see the update (signature-verified, prompt before install).
 - **A key is not needed for the dry-run** (Freqtrade simulates fills). It only
   matters at go-live, which is still a separate, manual, human-only step — saving
   or applying a key **never** flips `dry_run`.
+
+### Live snapshot (positions / P&L)
+
+- The controller JWT-auths to a **localhost** bot (`127.0.0.1:8080–8084`) using
+  `FREQTRADE__API_SERVER__USERNAME` / `PASSWORD` from the project `.env`. The
+  access token never leaves the Rust process.
+- It only reads `/show_config`, `/profit`, `/balance`, and `/status`. It does
+  not start/stop the bot via REST and **never** writes `dry_run`.
+- If a bot reports `dry_run: false`, the window shows a **LIVE TRIPWIRE**
+  banner. That is display-only — go-live remains a human-only config edit.
 
 ## Limits (honest)
 

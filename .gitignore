@@ -30,6 +30,7 @@ user_data/backups/
 *.tauri-signing.key.pub
 desktop/node_modules/
 desktop/src-tauri/target/
+desktop/src-tauri/freqtrade-client/target/
 desktop/src-tauri/gen/
 
 # Trade ledger exports (contain trade data)

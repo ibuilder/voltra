@@ -33,6 +33,14 @@
   .hint b { color:#cbd5e1; }
   .kraken input { width:100%; padding:8px; margin-top:8px; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#e2e8f0; }
   button.link { flex:none; width:100%; background:none; border:1px dashed #334155; color:#7dd3fc; margin-top:6px; }
+  .live { margin-top:18px; padding-top:14px; border-top:1px solid #1e2a44; }
+  .kpis { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+  .kpi { border:1px solid #1e2a44; border-radius:8px; padding:8px 10px; background:#0f172a; }
+  .kpi .lbl { font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; }
+  .kpi .val { font-size:16px; font-weight:700; margin-top:2px; }
+  .pos { display:flex; justify-content:space-between; padding:6px 0; border-top:1px solid #1e2a44; font-size:13px; }
+  select { width:100%; padding:8px; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#e2e8f0; }
+  .trip { background:#4c1d24; color:#fecaca; border-radius:6px; padding:8px 10px; font-size:12px; margin:8px 0; }
 </style>
 </head>
 <body>
@@ -54,6 +62,24 @@
       <div style="font-size:12px;color:#94a3b8;margin-bottom:4px;">Project folder (where docker-compose.yml lives)</div>
       <input id="dir" onchange="saveDir()" />
     </div>
+
+    <section class="live">
+      <div class="sec-title">Live snapshot
+        <span id="botMode" class="pill ok">dry-run</span>
+      </div>
+      <p class="hint">Read-only view of a local Freqtrade bot (JWT via .env WebUI login). Tokens stay in the Rust process. This never enables live trading.</p>
+      <select id="botUrl" onchange="refreshSnapshot()"></select>
+      <div id="tripwire" class="trip" hidden>LIVE TRIPWIRE — this bot reports dry_run=false. The controller did not enable that. Stop the stack and inspect config.</div>
+      <div class="kpis">
+        <div class="kpi"><div class="lbl">Balance</div><div class="val" id="kpiBal">—</div></div>
+        <div class="kpi"><div class="lbl">P/L (closed + open)</div><div class="val" id="kpiPnl">—</div></div>
+        <div class="kpi"><div class="lbl">Trades (W/L)</div><div class="val" id="kpiTrades">—</div></div>
+        <div class="kpi"><div class="lbl">Max drawdown</div><div class="val" id="kpiDd">—</div></div>
+      </div>
+      <p id="botMeta" class="hint">Start the stack, then pick a bot.</p>
+      <div class="sec-title" style="margin-top:12px">Open positions</div>
+      <div id="positions"><p class="hint">None yet.</p></div>
+    </section>
 
     <section class="kraken">
       <div class="sec-title">Kraken API key
@@ -134,22 +160,77 @@
     catch (e) { msg("error: " + e); }
   };
 
+  const usd = (v) => v == null ? "—" : Number(v).toLocaleString("en-US", { style: "currency", currency: "USD" });
+  const pct = (v) => v == null ? "—" : `${(Number(v) * 100).toFixed(2)}%`;
+  const signedPct = (v) => `${v >= 0 ? "+" : ""}${(Number(v) * 100).toFixed(2)}%`;
+
+  window.refreshSnapshot = async () => {
+    const sel = document.getElementById("botUrl");
+    const url = sel.value;
+    const mode = document.getElementById("botMode");
+    const trip = document.getElementById("tripwire");
+    try {
+      const s = await invoke("bot_snapshot", { url });
+      trip.hidden = !s.live_tripwire;
+      if (!s.reachable) {
+        mode.textContent = "offline";
+        mode.className = "pill bad";
+        document.getElementById("kpiBal").textContent = "—";
+        document.getElementById("kpiPnl").textContent = "—";
+        document.getElementById("kpiTrades").textContent = "—";
+        document.getElementById("kpiDd").textContent = "—";
+        document.getElementById("botMeta").textContent = s.error || "bot unreachable";
+        document.getElementById("positions").innerHTML = '<p class="hint">Bot not reachable.</p>';
+        return;
+      }
+      mode.textContent = s.live_tripwire ? "LIVE" : "dry-run";
+      mode.className = "pill " + (s.live_tripwire ? "bad" : "ok");
+      document.getElementById("kpiBal").textContent = usd(s.balance);
+      const pnlEl = document.getElementById("kpiPnl");
+      pnlEl.textContent = usd(s.total_pnl);
+      pnlEl.className = "val " + (s.total_pnl >= 0 ? "ok" : "bad");
+      document.getElementById("kpiTrades").textContent =
+        `${s.closed_trades} (${s.winning_trades}W/${s.losing_trades}L)`;
+      document.getElementById("kpiDd").textContent = pct(s.max_drawdown);
+      const parts = [s.strategy, s.state, s.stake_currency].filter(Boolean);
+      document.getElementById("botMeta").textContent =
+        `${parts.join(" · ")} · closed ${usd(s.closed_pnl)} · open ${usd(s.open_pnl)}`;
+      const wrap = document.getElementById("positions");
+      if (!s.open_positions.length) {
+        wrap.innerHTML = '<p class="hint">None — waiting for a setup.</p>';
+      } else {
+        wrap.innerHTML = s.open_positions.map((p) =>
+          `<div class="pos"><span>${p.pair}</span><span class="${p.profit_ratio >= 0 ? "ok" : "bad"}">${usd(p.profit_abs)} (${signedPct(p.profit_ratio)})</span></div>`
+        ).join("");
+      }
+    } catch (e) {
+      mode.textContent = "error";
+      mode.className = "pill bad";
+      document.getElementById("botMeta").textContent = String(e);
+    }
+  };
+
   window.refresh = async () => {
     try {
       const svcs = await invoke("stack_status");
       const el = document.getElementById("services");
-      if (!svcs.length) { el.innerHTML = '<div class="svc"><span>no containers</span><span class="warn">stopped</span></div>'; return; }
-      el.innerHTML = svcs.map(s => {
-        const up = /up|healthy/i.test(s.status);
-        const cls = /healthy|up/i.test(s.status) ? "ok" : "bad";
-        return `<div class="svc"><span>${s.name}</span><span class="${cls}">${s.status}</span></div>`;
-      }).join("");
+      if (!svcs.length) { el.innerHTML = '<div class="svc"><span>no containers</span><span class="warn">stopped</span></div>'; }
+      else {
+        el.innerHTML = svcs.map(s => {
+          const cls = /healthy|up/i.test(s.status) ? "ok" : "bad";
+          return `<div class="svc"><span>${s.name}</span><span class="${cls}">${s.status}</span></div>`;
+        }).join("");
+      }
     } catch(e){ msg("status error: "+e); }
+    refreshSnapshot();
   };
 
   async function boot() {
     document.getElementById("dir").value = await invoke("get_project_dir");
     document.getElementById("autostart").checked = await invoke("autostart_enabled");
+    const bots = await invoke("bot_catalog");
+    const sel = document.getElementById("botUrl");
+    sel.innerHTML = bots.map(b => `<option value="${b.url}">${b.label}</option>`).join("");
     refreshKeyState();
     refresh();
     setInterval(refresh, 15000);

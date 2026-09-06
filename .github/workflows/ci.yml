@@ -29,6 +29,18 @@ jobs:
             python -m json.tool "$f" > /dev/null && echo "ok $f"
           done
 
+  desktop-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri/freqtrade-client
+      - name: Unit-test Freqtrade snapshot client
+        working-directory: desktop/src-tauri/freqtrade-client
+        run: cargo test
+
   compose-lint:
     runs-on: ubuntu-latest
     steps:
