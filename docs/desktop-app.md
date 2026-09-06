@@ -6,17 +6,22 @@ login (no manual Startup-folder or PowerShell steps). It is a **controller**,
 not the bot — all trading logic stays in the Docker containers, and it never
 enables live trading.
 
+**First-run (human):** [operator-console.md](operator-console.md) — local
+snapshot → `./scripts/deploy.sh` → Remote VPS **Test TLS connection**.
+
 ## What you get
 
-- One `Voltra Controller.exe` (NSIS installer + MSI). Double-click installs.
+- Windows: `Voltra Controller.exe` (NSIS + MSI). macOS: `.dmg`. Linux: AppImage + `.deb`.
 - Tray icon: Start stack / Stop stack / Open Dashboard / Show / Quit.
-- Window: service list, autostart toggle, project-folder picker, **Kraken API
-  key entry** (OS-encrypted).
+- Window: **Local stack** or **Remote VPS** mode, service list, autostart,
+  project-folder picker, **live fleet snapshot** (JWT — P&L + open positions),
+  **Kraken API key entry** (OS-encrypted).
 - Auto-updates from signed GitHub Releases (prompts before installing).
 
 ## Prerequisites to build (one-time, on your machine or CI)
 
-- Node 20+, Rust (stable), and on Windows the MSVC build tools.
+- Node 20+, Rust (stable). Windows: MSVC build tools. macOS: Xcode CLT.
+  Linux: WebKitGTK 4.1 (`libwebkit2gtk-4.1-dev`).
 - The build is normally done by **GitHub Actions** (`.github/workflows/release.yml`),
   so you don't need a local toolchain — see "Release" below.
 
@@ -27,6 +32,22 @@ npm install
 npm run tauri dev      # run it live
 npm run tauri build    # produce the installer in src-tauri/target/release/bundle
 ```
+
+Snapshot-client unit tests (no GTK / Docker needed):
+
+```
+cargo test --manifest-path desktop/src-tauri/freqtrade-client/Cargo.toml
+```
+
+Browser preview of the window (mocked Tauri invoke — no WebKitGTK):
+
+```
+cd desktop/ui
+python3 -m http.server 4173 --bind 127.0.0.1
+# open http://127.0.0.1:4173/index.html?preview=1
+```
+
+The `?preview=1` flag loads `preview-mock.js`. The real app never sets that query.
 
 ## Release (what's done vs. what's left)
 
@@ -67,11 +88,15 @@ installed apps see the update (signature-verified, prompt before install).
 
 ## Configuration
 
-- The app defaults the project folder to `C:\Server\solsignal`. Change it in the
-  window if your checkout lives elsewhere; it's saved to the app config dir.
-- The app finds `docker.exe` on PATH or at the Docker Desktop default location.
-- It assumes Docker Desktop is installed. (A future version could bundle a
-  Docker health check / install prompt.)
+- The app looks for an existing checkout in this order: `C:\Server\solsignal`,
+  `~/voltra`, `/opt/voltra`. Use **Browse** or type a path; it's saved to the
+  app config dir.
+- The app finds `docker` on PATH, the Windows Docker Desktop default path, or
+  `/usr/bin` / `/usr/local/bin`.
+- **Docker health check:** the window shows whether the CLI, daemon,
+  `docker-compose.yml`, and `.env` WebUI password are ready. Missing Docker
+  deep-links to the install docs; missing `.env` can be copied from
+  `.env.example`. The stack is not auto-started at login until Docker is ready.
 
 ### Kraken API key
 
@@ -87,6 +112,23 @@ installed apps see the update (signature-verified, prompt before install).
 - **A key is not needed for the dry-run** (Freqtrade simulates fills). It only
   matters at go-live, which is still a separate, manual, human-only step — saving
   or applying a key **never** flips `dry_run`.
+
+### Live snapshot (positions / P&L)
+
+- **Local:** JWT to `127.0.0.1:8080–8084` using `.env` WebUI creds.
+- **Remote VPS:** JWT to `https://<your-domain>/bot/{dry,dca,xsmom,cross,webhook}`
+  (Caddy). Origin must be HTTPS on a public hostname (no IPs, no http, no
+  userinfo). WebUI user/password live in the OS keychain, not a file.
+- The access token never leaves the Rust process. A fleet strip shows every bot;
+  click one for P&L and open positions.
+- It only reads `/show_config`, `/profit`, `/balance`, and `/status`. It does
+  not start/stop the bot via REST and **never** writes `dry_run`.
+- If a bot reports `dry_run: false`, the window shows a **LIVE TRIPWIRE**
+  banner. That is display-only — go-live remains a human-only config edit.
+- Remote mode does **not** start Docker on the laptop. 24/7 trading stays on
+  the VPS; the desktop is a console. See
+  [deploy-oracle-free.md](deploy-oracle-free.md) /
+  [deploy-hetzner.md](deploy-hetzner.md).
 
 ## Limits (honest)
 

@@ -6,11 +6,14 @@
 // dashboard, and can enable run-on-login on its own.
 //
 // SAFETY: this app never sets dry_run=false or touches live-trading config.
-// It only runs `docker compose up -d / down / ps` in the project directory.
+// It only runs `docker compose up -d / down / ps` in the project directory
+// and read-only Freqtrade REST (JWT snapshot of P&L / positions).
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::path::PathBuf;
+use freqtrade_client as freqtrade;
+
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use serde::Serialize;
@@ -19,21 +22,50 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Manager};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_autostart::ManagerExt;
+use tauri_plugin_dialog::DialogExt;
 
-const DEFAULT_PROJECT_DIR: &str = "C:\\Server\\solsignal";
+const LEGACY_PROJECT_DIR: &str = "C:\\Server\\solsignal";
 
-// Candidate docker CLI locations (Docker Desktop is often not on PATH).
-fn docker_bin() -> String {
-    let candidates = [
+fn default_project_dir() -> PathBuf {
+    let candidates: Vec<PathBuf> = {
+        let mut v = vec![PathBuf::from(LEGACY_PROJECT_DIR)];
+        if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
+            v.push(PathBuf::from(home).join("voltra"));
+        }
+        v.push(PathBuf::from("/opt/voltra"));
+        v
+    };
+    candidates
+        .into_iter()
+        .find(|p| p.is_dir())
+        .unwrap_or_else(|| PathBuf::from(LEGACY_PROJECT_DIR))
+}
+
+fn docker_candidates() -> &'static [&'static str] {
+    &[
         "docker",
         "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe",
-    ];
-    for c in candidates {
+        "/usr/local/bin/docker",
+        "/usr/bin/docker",
+    ]
+}
+
+// Candidate docker CLI locations (Docker Desktop is often not on PATH).
+fn docker_bin() -> Option<String> {
+    for c in docker_candidates() {
         if Command::new(c).arg("--version").output().map(|o| o.status.success()).unwrap_or(false) {
-            return c.to_string();
+            return Some((*c).to_string());
         }
     }
-    "docker".to_string()
+    None
+}
+
+fn docker_daemon_ok(bin: &str) -> bool {
+    Command::new(bin)
+        .args(["info", "--format", "{{.ServerVersion}}"])
+        .output()
+        .map(|o| o.status.success() && !String::from_utf8_lossy(&o.stdout).trim().is_empty())
+        .unwrap_or(false)
 }
 
 fn project_dir(app: &tauri::AppHandle) -> PathBuf {
@@ -47,12 +79,18 @@ fn project_dir(app: &tauri::AppHandle) -> PathBuf {
             }
         }
     }
-    PathBuf::from(DEFAULT_PROJECT_DIR)
+    default_project_dir()
 }
 
 fn compose(app: &tauri::AppHandle, args: &[&str]) -> Result<String, String> {
-    let dir = project_dir(app);
-    let out = Command::new(docker_bin())
+    let bin = docker_bin().ok_or_else(|| {
+        "Docker CLI not found. Install Docker Desktop, then try again.".to_string()
+    })?;
+    if !docker_daemon_ok(&bin) {
+        return Err("Docker is installed but the daemon is not running — start Docker Desktop.".into());
+    }
+    let dir = freqtrade::validate_voltra_project(&project_dir(app))?;
+    let out = Command::new(bin)
         .arg("compose")
         .args(args)
         .current_dir(&dir)
@@ -104,9 +142,22 @@ fn get_project_dir(app: tauri::AppHandle) -> String {
 
 #[tauri::command]
 fn set_project_dir(app: tauri::AppHandle, dir: String) -> Result<(), String> {
+    let dir = freqtrade::validate_voltra_project(Path::new(dir.trim()))?;
     let cfg = app.path().app_config_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&cfg).map_err(|e| e.to_string())?;
-    std::fs::write(cfg.join("project_dir.txt"), dir).map_err(|e| e.to_string())
+    std::fs::write(cfg.join("project_dir.txt"), dir.to_string_lossy().as_ref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn pick_project_dir(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let picked = app.dialog().file().set_title("Voltra project folder").blocking_pick_folder();
+    let Some(path) = picked else {
+        return Ok(None);
+    };
+    let dir = format!("{path}");
+    set_project_dir(app, dir.clone())?;
+    Ok(Some(dir))
 }
 
 #[tauri::command]
@@ -120,10 +171,87 @@ fn set_autostart(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
     if enabled { al.enable() } else { al.disable() }.map_err(|e| e.to_string())
 }
 
+fn is_remote_mode(app: &tauri::AppHandle) -> bool {
+    connection_mode(app) == "remote"
+}
+
+fn connection_mode(app: &tauri::AppHandle) -> String {
+    read_app_file(app, "connection_mode.txt").unwrap_or_else(|| "local".into())
+}
+
+fn read_app_file(app: &tauri::AppHandle, name: &str) -> Option<String> {
+    let dir = app.path().app_config_dir().ok()?;
+    let s = std::fs::read_to_string(dir.join(name)).ok()?;
+    let s = s.trim();
+    if s.is_empty() { None } else { Some(s.to_string()) }
+}
+
+fn write_app_file(app: &tauri::AppHandle, name: &str, value: &str) -> Result<(), String> {
+    let cfg = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&cfg).map_err(|e| e.to_string())?;
+    std::fs::write(cfg.join(name), value).map_err(|e| e.to_string())
+}
+
+fn remote_origin(app: &tauri::AppHandle) -> Option<String> {
+    read_app_file(app, "remote_origin.txt")
+        .and_then(|o| freqtrade::normalize_remote_origin(&o).ok())
+}
+
+fn remote_creds() -> Result<(String, String), String> {
+    let user = kr_entry("remote_webui_user")?
+        .get_password()
+        .map_err(|_| "Save the remote WebUI username and password first.".to_string())?;
+    let pass = kr_entry("remote_webui_password")?
+        .get_password()
+        .map_err(|_| "Save the remote WebUI username and password first.".to_string())?;
+    let user = user.trim().to_string();
+    let pass = pass.trim().to_string();
+    freqtrade::validate_secret_value("WebUI username", &user, 128)?;
+    freqtrade::validate_secret_value("WebUI password", &pass, 256)?;
+    Ok((user, pass))
+}
+
+fn fleet_bots(app: &tauri::AppHandle) -> Result<Vec<freqtrade::BotInfo>, String> {
+    if is_remote_mode(app) {
+        let origin = remote_origin(app).ok_or_else(|| {
+            "Set a remote origin like https://trade.example.com first.".to_string()
+        })?;
+        freqtrade::catalog_remote(&origin)
+    } else {
+        Ok(freqtrade::catalog_local())
+    }
+}
+
+fn open_allowlisted(url: &str) {
+    if freqtrade::is_allowed_open_url(url) {
+        let _ = open::that(url);
+    }
+}
+
 #[tauri::command]
-fn open_dashboard() {
-    // Custom dashboard on :8899; falls back silently if the browser call fails.
-    let _ = open::that("http://127.0.0.1:8899");
+fn open_dashboard(app: tauri::AppHandle) {
+    if is_remote_mode(&app) {
+        if let Some(origin) = remote_origin(&app) {
+            if let Ok(url) = freqtrade::remote_cockpit_url(&origin) {
+                open_allowlisted(&url);
+            }
+        }
+        return;
+    }
+    open_allowlisted("http://127.0.0.1:8899");
+}
+
+#[tauri::command]
+fn open_frequi(app: tauri::AppHandle) {
+    if is_remote_mode(&app) {
+        if let Some(origin) = remote_origin(&app) {
+            if let Ok(url) = freqtrade::remote_frequi_url(&origin) {
+                open_allowlisted(&url);
+            }
+        }
+        return;
+    }
+    open_allowlisted("http://127.0.0.1:8080");
 }
 
 // ---------------------------------------------------------------------------
@@ -147,9 +275,8 @@ fn kr_entry(name: &str) -> Result<keyring::Entry, String> {
 #[tauri::command]
 fn save_kraken_key(key: String, secret: String) -> Result<(), String> {
     let (key, secret) = (key.trim(), secret.trim());
-    if key.is_empty() || secret.is_empty() {
-        return Err("Both the API key and secret are required.".into());
-    }
+    freqtrade::validate_secret_value("Kraken API key", key, 256)?;
+    freqtrade::validate_secret_value("Kraken API secret", secret, 512)?;
     kr_entry("kraken_api_key")?
         .set_password(key)
         .map_err(|e| format!("could not save key: {e}"))?;
@@ -197,7 +324,7 @@ fn clear_kraken_key() -> Result<(), String> {
 fn open_kraken_api_page() {
     // Kraken Pro API-key management. The user creates a TRADE-ONLY, NO-withdrawal,
     // IP-whitelisted key here, then pastes it back into the app.
-    let _ = open::that("https://pro.kraken.com/app/settings/api");
+    open_allowlisted("https://pro.kraken.com/app/settings/api");
 }
 
 // Upsert `KEY=value` in a list of .env lines.
@@ -221,20 +348,218 @@ fn apply_kraken_key_to_env(app: tauri::AppHandle) -> Result<String, String> {
         .get_password()
         .map_err(|_| "No Kraken secret saved yet — save one first.".to_string())?;
 
-    let env_path = project_dir(&app).join(".env");
+    freqtrade::validate_secret_value("Kraken API key", &key, 256)?;
+    freqtrade::validate_secret_value("Kraken API secret", &secret, 512)?;
+    let env_path = freqtrade::validate_voltra_project(&project_dir(&app))?.join(".env");
     let existing = std::fs::read_to_string(&env_path).unwrap_or_default();
     let mut lines: Vec<String> = existing.lines().map(|l| l.to_string()).collect();
     upsert_env(&mut lines, "FREQTRADE__EXCHANGE__KEY", &key);
     upsert_env(&mut lines, "FREQTRADE__EXCHANGE__SECRET", &secret);
     std::fs::write(&env_path, lines.join("\n") + "\n").map_err(|e| e.to_string())?;
+    freqtrade::restrict_env_file_permissions(&env_path);
 
     Ok("Key written to .env. Restart the stack to load it. Dry-run stays ON — \
         going live is a separate, manual step.".into())
 }
 
+#[derive(Serialize)]
+struct DockerHealth {
+    cli_found: bool,
+    daemon_ok: bool,
+    compose_file: bool,
+    env_exists: bool,
+    webui_password: bool,
+    ready: bool,
+    hint: String,
+}
+
+#[tauri::command]
+fn docker_health(app: tauri::AppHandle) -> DockerHealth {
+    let dir = project_dir(&app);
+    let cli = docker_bin();
+    let cli_found = cli.is_some();
+    let daemon_ok = cli.as_deref().map(docker_daemon_ok).unwrap_or(false);
+    let compose_file = dir.join("docker-compose.yml").is_file();
+    let env = freqtrade::inspect_env(&dir);
+    let (ready, hint) = freqtrade::stack_ready_hint(cli_found, daemon_ok, compose_file, &env);
+    DockerHealth {
+        cli_found,
+        daemon_ok,
+        compose_file,
+        env_exists: env.env_exists,
+        webui_password: env.password_set,
+        ready,
+        hint,
+    }
+}
+
+#[tauri::command]
+fn copy_env_example(app: tauri::AppHandle) -> Result<String, String> {
+    let dir = freqtrade::validate_voltra_project(&project_dir(&app))?;
+    let src = dir.join(".env.example");
+    let dest = dir.join(".env");
+    if dest.exists() {
+        return Ok(".env already exists — not overwritten.".into());
+    }
+    if !src.is_file() {
+        return Err("No .env.example in the project folder.".into());
+    }
+    std::fs::copy(&src, &dest).map_err(|e| e.to_string())?;
+    freqtrade::restrict_env_file_permissions(&dest);
+    Ok("Copied .env.example → .env. Set FREQTRADE__API_SERVER__PASSWORD, then refresh.".into())
+}
+
+#[tauri::command]
+fn open_docker_install() {
+    let url = if cfg!(target_os = "macos") {
+        "https://docs.docker.com/desktop/setup/install/mac-install/"
+    } else if cfg!(target_os = "windows") {
+        "https://docs.docker.com/desktop/setup/install/windows-install/"
+    } else {
+        "https://docs.docker.com/engine/install/"
+    };
+    open_allowlisted(url);
+}
+
+#[derive(Serialize)]
+struct ConnectionState {
+    mode: String,
+    remote_origin: String,
+    remote_user_saved: bool,
+    remote_user_hint: String,
+}
+
+#[tauri::command]
+fn get_connection(app: tauri::AppHandle) -> ConnectionState {
+    let user = kr_entry("remote_webui_user")
+        .ok()
+        .and_then(|e| e.get_password().ok())
+        .unwrap_or_default();
+    let hint = if user.len() > 2 {
+        format!("{}…", &user[..user.len().min(3)])
+    } else if user.is_empty() {
+        String::new()
+    } else {
+        "saved".into()
+    };
+    ConnectionState {
+        mode: connection_mode(&app),
+        remote_origin: remote_origin(&app).unwrap_or_default(),
+        remote_user_saved: !user.is_empty()
+            && kr_entry("remote_webui_password")
+                .ok()
+                .and_then(|e| e.get_password().ok())
+                .is_some_and(|p| !p.is_empty()),
+        remote_user_hint: hint,
+    }
+}
+
+#[tauri::command]
+fn set_connection_mode(app: tauri::AppHandle, mode: String) -> Result<(), String> {
+    if mode != "local" && mode != "remote" {
+        return Err("mode must be local or remote".into());
+    }
+    write_app_file(&app, "connection_mode.txt", &mode)
+}
+
+#[tauri::command]
+fn set_remote_origin(app: tauri::AppHandle, origin: String) -> Result<String, String> {
+    let origin = freqtrade::normalize_remote_origin(&origin)?;
+    write_app_file(&app, "remote_origin.txt", &origin)?;
+    Ok(origin)
+}
+
+#[tauri::command]
+fn save_remote_webui(user: String, password: String) -> Result<(), String> {
+    let (user, password) = (user.trim(), password.trim());
+    freqtrade::validate_secret_value("WebUI username", user, 128)?;
+    freqtrade::validate_secret_value("WebUI password", password, 256)?;
+    kr_entry("remote_webui_user")?
+        .set_password(user)
+        .map_err(|e| format!("could not save user: {e}"))?;
+    kr_entry("remote_webui_password")?
+        .set_password(password)
+        .map_err(|e| format!("could not save password: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn clear_remote_webui() -> Result<(), String> {
+    if let Ok(e) = kr_entry("remote_webui_user") {
+        let _ = e.delete_password();
+    }
+    if let Ok(e) = kr_entry("remote_webui_password") {
+        let _ = e.delete_password();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn bot_catalog(app: tauri::AppHandle) -> Result<Vec<freqtrade::BotInfo>, String> {
+    fleet_bots(&app)
+}
+
+/// JWT-auth to a Freqtrade bot and return P&L + open positions.
+/// Local: creds from `.env`. Remote: OS keychain. Never from the webview after save.
+#[tauri::command]
+fn bot_snapshot(app: tauri::AppHandle, url: String) -> Result<freqtrade::BotSnapshot, String> {
+    if is_remote_mode(&app) {
+        let origin = remote_origin(&app).ok_or_else(|| {
+            "Set a remote origin like https://trade.example.com first.".to_string()
+        })?;
+        let (user, pass) = remote_creds()?;
+        freqtrade::fetch_snapshot_on_origin(&origin, &url, &user, &pass)
+    } else {
+        freqtrade::fetch_snapshot(&project_dir(&app), &url)
+    }
+}
+
+#[tauri::command]
+fn bot_fleet(app: tauri::AppHandle) -> Result<Vec<freqtrade::FleetEntry>, String> {
+    let bots = fleet_bots(&app)?;
+    let creds = if is_remote_mode(&app) {
+        remote_creds()
+    } else {
+        let dir = project_dir(&app);
+        match std::fs::read_to_string(dir.join(".env")) {
+            Ok(text) => freqtrade::parse_env_creds(&text),
+            Err(_) => Err("could not read .env — copy .env.example and set the WebUI password".into()),
+        }
+    };
+    Ok(freqtrade::fetch_fleet_from(&bots, &creds))
+}
+
+/// TLS + JWT smoke test against `/bot/dry` on the saved remote origin.
+#[tauri::command]
+fn probe_remote(app: tauri::AppHandle) -> Result<String, String> {
+    if !is_remote_mode(&app) {
+        return Err("Switch to Remote VPS mode first.".into());
+    }
+    let origin = remote_origin(&app)
+        .ok_or_else(|| "Set a remote origin like https://trade.example.com first.".to_string())?;
+    let (user, pass) = remote_creds()?;
+    let bots = freqtrade::catalog_remote(&origin)?;
+    let dry = bots
+        .iter()
+        .find(|b| b.slug == "dry")
+        .ok_or_else(|| "remote catalog missing /bot/dry".to_string())?;
+    let snap = freqtrade::fetch_snapshot_on_origin(&origin, &dry.url, &user, &pass)?;
+    if snap.live_tripwire {
+        return Err(format!(
+            "LIVE TRIPWIRE on {origin}/bot/dry — dry_run is false. The controller did not enable that."
+        ));
+    }
+    if !snap.reachable {
+        return Err(snap.error.unwrap_or_else(|| format!("{origin} unreachable").into()));
+    }
+    let strat = snap.strategy.unwrap_or_else(|| "unknown strategy".into());
+    Ok(format!(
+        "TLS + JWT ok at {origin}/bot/dry ({strat}). Read-only; dry-run stays a human-only change."
+    ))
+}
+
 fn main() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
@@ -247,14 +572,28 @@ fn main() {
             stack_status,
             get_project_dir,
             set_project_dir,
+            pick_project_dir,
             autostart_enabled,
             set_autostart,
             open_dashboard,
+            open_frequi,
+            get_connection,
+            set_connection_mode,
+            set_remote_origin,
+            save_remote_webui,
+            clear_remote_webui,
+            probe_remote,
             save_kraken_key,
             kraken_key_status,
             clear_kraken_key,
             open_kraken_api_page,
             apply_kraken_key_to_env,
+            bot_catalog,
+            bot_snapshot,
+            bot_fleet,
+            docker_health,
+            copy_env_example,
+            open_docker_install,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -272,7 +611,7 @@ fn main() {
                 .tooltip("Voltra Controller")
                 .menu(&menu)
                 .on_menu_event(move |app, event| match event.id.as_ref() {
-                    "open" => open_dashboard(),
+                    "open" => open_dashboard(app.clone()),
                     "up" => {
                         let _ = stack_up(app.clone());
                         let _ = app.emit("stack-changed", ());
@@ -292,8 +631,14 @@ fn main() {
                 })
                 .build(app)?;
 
-            // Auto-start the stack when the controller launches at login.
-            let _ = stack_up(handle);
+            // Auto-start the local stack at login only when Docker is ready
+            // and we are not in remote-VPS console mode.
+            if !is_remote_mode(&handle) {
+                let health = docker_health(handle.clone());
+                if health.ready {
+                    let _ = stack_up(handle);
+                }
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

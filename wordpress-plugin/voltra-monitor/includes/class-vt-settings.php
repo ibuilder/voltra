@@ -58,7 +58,7 @@ class VT_Settings {
 	 */
 	public static function get() {
 		$defaults = array(
-			'bots'            => "voltra-dry|http://127.0.0.1:8080\nvoltra-cross|http://127.0.0.1:8081\nvoltra-webhook|http://127.0.0.1:8082",
+			'bots'            => "voltra-dry|http://127.0.0.1:8080\nvoltra-cross|http://127.0.0.1:8081\nvoltra-webhook|http://127.0.0.1:8082\nvoltra-dca|http://127.0.0.1:8083\nvoltra-xsmom|http://127.0.0.1:8084",
 			'username'        => 'voltra',
 			'password'        => '',
 			'alert_email'     => get_option( 'admin_email' ),

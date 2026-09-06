@@ -7,6 +7,28 @@ milestones (pre-1.0, no semantic-version guarantees yet).
 ## [Unreleased]
 
 ### Added
+- **Operator console checklist** — `docs/operator-console.md` (local snapshot →
+  Caddy deploy → remote TLS probe). `scripts/check_console.py` keeps Caddy
+  slugs, compose ports, deploy health waits, and the desktop client aligned.
+- **Controller browser preview** — `desktop/ui/index.html?preview=1` mocks Tauri
+  invoke so the window can be clicked through without WebKitGTK.
+- **Desktop live snapshot** — Tauri controller JWT-auths to localhost
+  Freqtrade bots (creds from `.env`) and shows a fleet strip plus balance,
+  closed+open P&L, W/L, drawdown, and open positions. Tokens stay in Rust;
+  `dry_run` is never flipped. A LIVE tripwire banner appears if a bot reports live.
+- **Docker health in the controller** — detects missing CLI / stopped daemon /
+  wrong folder / missing `.env`, with copy-from-example and an install link.
+  Login autostart waits until Docker is ready.
+- **Remote VPS console** — desktop can JWT to `https://<domain>/bot/{dry,dca,xsmom,cross,webhook}`
+  (Caddy TLS). Origin allowlisted (HTTPS, public hostname, known slugs).
+  WebUI creds in the OS keychain. Laptop Docker is not started in remote mode.
+- **Caddy** now exposes `/bot/dca` and `/bot/xsmom` alongside dry/cross/webhook.
+- **Cross-platform installers** — release CI builds Windows (NSIS/MSI), macOS
+  (DMG), and Linux (AppImage/deb) from `app-v*` tags.
+- **Project folder Browse** + OS-aware default (`C:\Server\solsignal`,
+  `~/voltra`, `/opt/voltra`).
+- **Test TLS connection** on Remote VPS (JWT to `/bot/dry`; tripwire if live).
+- **WordPress monitor 0.2.1** — default bot list includes DCA and XS-momentum.
 - **Simple cockpit dashboard** (:8899) — single-page, brand-styled: plain-English
   status, Start/Stop/Reload bot-command buttons, an honest **vs-buy-and-hold
   scoreboard**, a strategy-mode switcher, and P/L that includes open positions.

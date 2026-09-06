@@ -15,6 +15,7 @@ about whether it does, at a price you cap yourself.
   dry-run in July — it is the #1 production task.
 - [ ] Verify after next login: `docker compose ps` shows all 4 containers up,
   and `user_data\logs\autostart.log` has a fresh "compose up -d done" line.
+  Expect five bots (dry, cross, webhook, dca, xsmom), not four.
 - [ ] **Or better: a small VPS** (~$5–10/mo, e.g. Hetzner/DigitalOcean).
   `git clone` + copy `.env` + `docker compose up -d` is the whole migration.
   A box that reboots or sleeps will eventually miss a stop-loss placement

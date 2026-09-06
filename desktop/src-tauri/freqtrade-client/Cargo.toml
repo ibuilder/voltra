@@ -1,0 +1,14 @@
+[package]
+name = "freqtrade-client"
+version = "0.1.0"
+description = "Read-only localhost Freqtrade REST client (JWT snapshot)"
+edition = "2021"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "2", features = ["json"] }
+url = "2"
+base64 = "0.22"
+sha2 = "0.10"

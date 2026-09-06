@@ -23,15 +23,34 @@ jobs:
       - name: Run tests
         run: python -m pytest tests/ -q
 
+      - name: Console / Caddy / compose alignment
+        run: python3 scripts/check_console.py
+
       - name: Validate JSON configs and params
         run: |
           for f in user_data/config*.json user_data/strategies/*.json user_data/pairlist.json; do
             python -m json.tool "$f" > /dev/null && echo "ok $f"
           done
 
+  desktop-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri/freqtrade-client
+      - name: Unit-test Freqtrade snapshot client
+        working-directory: desktop/src-tauri/freqtrade-client
+        run: cargo test
+
   compose-lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Validate docker-compose.yml
-        run: docker compose config --quiet && echo "compose valid"
+        run: |
+          # compose references env_file: .env (gitignored). Seed the example
+          # so CI can lint the file without secrets.
+          cp .env.example .env
+          docker compose config --quiet && echo "compose valid"
