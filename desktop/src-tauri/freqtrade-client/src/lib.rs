@@ -75,7 +75,7 @@ pub struct BotInfo {
     pub strategy: String,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct OpenPosition {
     pub pair: String,
     pub profit_abs: f64,
@@ -84,7 +84,7 @@ pub struct OpenPosition {
     pub amount: Option<f64>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct BotSnapshot {
     pub url: String,
     pub reachable: bool,
@@ -849,7 +849,7 @@ OTHER=ignore
     }
 
     fn spawn_freqtrade_mock() -> Option<u16> {
-        use std::io::{Read, Write};
+        use std::io::Write;
         use std::net::TcpListener;
         use std::thread;
         use std::time::Duration;
